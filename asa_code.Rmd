@@ -1,0 +1,615 @@
+---
+title: "ASA Dex cardiac surgery submission"
+author: "Tom Payne"
+date: '`r format(Sys.time(), "%Y-%m-%d %H:%M")`'
+output:   
+  html_document:
+    toc: true
+    toc_depth: 4
+    number_sections: true
+    toc_float: true
+    theme: united
+---
+
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(gridExtra)
+library(ggrepel)
+library(knitr)
+library(kableExtra)
+library(metafor)
+library(lme4)
+library(numDeriv)
+library(BiasedUrn)
+library(dplyr)
+library(glue)
+library(gt)
+library(dmetar)
+library(meta)
+library(gridBase)
+library(grid)
+library(bayesmeta)
+library(brms)
+library(tidybayes)
+library(patchwork)
+library(emmeans)
+
+knitr::opts_chunk$set(echo = F, message = F, warning = F, error = T, 
+                      fig.height = 3, out.width = "100%", 
+                      dev = "png", dpi = 300, cache = T)
+
+### Set filepaths 
+import_path_mac <- '/Users/thomaspayne/Documents/MPhil/cardiac_dex_ma/'
+export_path_mac <- '/Users/thomaspayne/Documents/MPhil/cardiac_dex_ma/'
+
+data <- read.csv(paste0(export_path_mac, "DECADE_Letter_Data.csv"))
+
+## Create a column for total in dex and control group, and order by year
+dat <- data %>%
+  filter(!is.na(year)) %>%
+  mutate_all(~ifelse(. == "N/A", "NA", .)) %>%
+  mutate(dex_n = dex_no_del + dex_del, 
+         control_n = control_no_del + control_del) %>%
+  arrange(year)
+
+
+## Delirium incidence outcome
+## First, calculate logORs and variance for delirium
+dat_del_na_removed <- dat[!is.na(dat$dex_del)&!is.na(dat$control_del),]
+IVdat_del_bayesmeta <- escalc(measure="OR", ai=dex_del, bi=dex_no_del, 
+                ci=control_del, di=control_no_del, data=dat_del_na_removed, slab=paste(author,year, sep=", "))
+
+  
+## First we need to make sure that any duplicate author names are changes
+# Create a new column to store the updated author names
+IVdat_del_bayesmeta$author_updated <- IVdat_del_bayesmeta$author
+
+# Identify the rows where the author name is duplicated
+duplicated_rows <- duplicated(IVdat_del_bayesmeta$author) | duplicated(IVdat_del_bayesmeta$author, fromLast = TRUE)
+
+# Create a suffix vector for duplicated author names
+suffix_vec <- rep("", length(IVdat_del_bayesmeta$author))
+suffix_vec[duplicated(IVdat_del_bayesmeta$author)] <- ave(IVdat_del_bayesmeta$author, IVdat_del_bayesmeta$author, FUN = function(x) {
+  letters[seq_along(x)]
+})
+
+# Add suffixes to the duplicated author names
+IVdat_del_bayesmeta$author[duplicated_rows] <- paste0(IVdat_del_bayesmeta$author[duplicated_rows], "_", suffix_vec[duplicated_rows])
+
+IVdat_del <- IVdat_del_bayesmeta %>%
+  mutate(sei = sqrt(vi),
+         author1 = paste(author, year, sep = " "))
+
+## Conduct the primary analysis 
+### Proper, uninformative/vague prior for mu: N(0,16))
+### Proper, uninformative/vague prior for tau: HN(0,16)
+## The above vague priors are based on those given in Albuquerque et al. (JAMA 2022)
+
+priors_primary <- brms::prior(normal(0,0.82), class = b, coef = "Intercept") +
+            brms::prior(cauchy(0,0.5), class = sd)
+
+priors_metareg <- brms::prior(normal(0,0.82), class = b, coef = "Intercept") +
+            brms::prior(cauchy(0,0.5), class = sd) +
+            brms::prior(normal(0,1), class = b)
+
+  # Run the brms model
+m.brm_including_decade <- brm(yi | se(sei) ~ 0 + Intercept + (1 | author1),
+             data = IVdat_del,
+             prior = priors_primary,
+              iter = 4000,
+              backend = "cmdstanr", 
+              cores = parallel::detectCores(),
+              chains = 4,
+              seed = 123)
+
+m.brm_excluding_decade <- update(m.brm_including_decade,
+                                 newdata = IVdat_del %>% filter(!author == "Turan et al."))
+
+```
+
+# Plot
+
+```{r decade_bayesian_re-analysis, fig.width=12, fig.height=10, cache=TRUE, results='hide', message=FALSE, warning=FALSE, errors=FALSE}
+
+## Create a dataframe with the DECADE trial's results
+group <- c(rep("dexmedetomidine", 398), rep("placebo", 396))
+delirium <- c(rep(1, 67), rep(0, 331), rep(1, 46), rep(0, 350))
+df <- data.frame(group, delirium)
+
+df$group <- factor(df$group, levels = c("placebo", "dexmedetomidine"))
+
+## First create our MA priors
+## start with the fully weighted MA prior
+median_mu_excl_decade <- m.brm_excluding_decade %>%
+  spread_draws(b_Intercept) %>%
+  median_qi() %>%
+  dplyr::select(b_Intercept)
+#  -0.704
+
+median_tau_excl_decade <- m.brm_excluding_decade %>%
+  spread_draws(sd_author1__Intercept) %>%
+  median_qi() %>%
+  dplyr::select(sd_author1__Intercept)
+# 0.142
+
+## Make a function to extract the posterior estimates
+
+draws_fn <- function(brm) {
+  brm %>%
+  spread_draws(b_groupdexmedetomidine) %>%
+  median_qi() %>% 
+  mutate(estimate = paste0(sprintf('%.2f', exp(b_groupdexmedetomidine)), 
+                  ' [', sprintf('%.2f', exp(.lower)),
+                  ', ', sprintf('%.2f', exp(.upper)), ']'))
+}
+
+# Also we need a function to extract the draws for the forest plot
+forest_draws_fn <- function(brm, prior) {
+  brm %>%
+  spread_draws(b_groupdexmedetomidine) %>%
+    dplyr::select(b_groupdexmedetomidine) %>%
+    mutate(subgroup = prior)
+    
+}
+
+## and a function to calculate probability of benefit
+benefit_fn <- function(brm) {
+  brm %>% 
+  tidy_draws() %>% 
+  summarise(prob_benefit = sprintf('%.1f', 100*mean(b_groupdexmedetomidine < 0)),
+            prob_harm = sprintf('%.1f', 100*mean(b_groupdexmedetomidine > 0)),
+            prob_mcid_harm = sprintf('%.1f', 100*mean(b_groupdexmedetomidine > 0.18)),
+            prob_mcid_benefit = sprintf('%.1f', 100*mean(b_groupdexmedetomidine < -0.18)))
+}
+
+
+full_weight_ma_priors <- brms::prior(normal(-0.704, 0.142), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+
+ma_full_weight.brm <- brm(delirium ~ 0 + Intercept + group,
+             data = df,
+             family = bernoulli(link = "logit"),
+             prior = full_weight_ma_priors,
+              iter = 4000,
+              backend = "cmdstanr", 
+              cores = parallel::detectCores(),
+              chains = 4,
+              seed = 123)
+
+ma_full_weight_draws <- draws_fn(ma_full_weight.brm)
+
+ma_full_weight_forest_draws <- forest_draws_fn(ma_full_weight.brm, "MA (100% weight)")
+ma_full_weight_benefit <- benefit_fn(ma_full_weight.brm)
+
+# Extract draws for individual groups as per https://ccforum.biomedcentral.com/articles/10.1186/s13054-022-04120-y#Sec12
+group_draws <- vague.brm %>% 
+  emmeans(~ group, epred = TRUE, re_formula = NULL) %>% 
+  gather_emmeans_draws() %>%
+  select(-.chain,-.iteration) %>% 
+  pivot_wider(names_from = "group",values_from = ".value",id_cols = .draw)
+
+## Now for the 50% weight (get this by multiplying SD by 2)
+
+half_weight_ma_priors <- brms::prior(normal(-0.704, 0.284), class = b, coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+
+ma_half_weight.brm <- update(ma_full_weight.brm, prior = half_weight_ma_priors)
+
+ma_half_weight_draws <- draws_fn(ma_half_weight.brm)
+ma_half_weight_forest_draws <- forest_draws_fn(ma_half_weight.brm, "MA (50% weight)")
+ma_half_weight_benefit <- benefit_fn(ma_half_weight.brm)
+
+
+## Now for the 25% weight (get this by multiplying SD by 4)
+
+quarter_weight_ma_priors <- brms::prior(normal(-0.704, 0.568), class = b, coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+
+ma_quarter_weight.brm <- update(ma_full_weight.brm, prior = quarter_weight_ma_priors)
+
+ma_quarter_weight_draws <- draws_fn(ma_quarter_weight.brm)
+ma_quarter_weight_forest_draws <- forest_draws_fn(ma_quarter_weight.brm, "MA (25% weight)")
+ma_quarter_weight_benefit <- benefit_fn(ma_quarter_weight.brm)
+
+## Now for our reference priors
+# Start with vague with SD = 10
+vague_priors <- brms::prior(normal(0,10), class = b, coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+
+vague.brm <- update(ma_full_weight.brm, prior = vague_priors)
+
+vague_draws <- draws_fn(vague.brm)
+vague_forest_draws <- forest_draws_fn(vague.brm, "Vague")
+vague_benefit <- benefit_fn(vague.brm)
+
+
+# Now very skeptical
+
+## We want an RCT of 500 people showing a 0.27 logOR increase in delirium (1.5*MCID of Cohen's D = 0.1)
+# First, to calculate the SE of the RCT we need to calculate the risk in treatment and control groups using formula: Rt = Rc*OR/Rc*(OR - 1) + 1
+rt <- (0.12*exp(0.27))/(0.12*(exp(0.27) - 1) + 1)
+## [1] 0.1515584
+
+## So the risk would increased from 12% to 15.156%. 
+## To obtain a prior RCT of n = 1000 showing no effect using the base rate of 12% delirium from DECADE
+## We need to use the formula: SE = sqrt(1/a + 1/b + 1/c + 1d)
+
+se_very_skeptical <- sqrt((1/60) + (1/440) + (1/76) + (1/424))
+## 0.1856227
+
+very_skeptical_priors <- brms::prior(normal(0.27, 0.1856227), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+  
+very_skeptical.brm <- update(ma_full_weight.brm, prior = very_skeptical_priors)
+
+very_skeptical_draws <- draws_fn(very_skeptical.brm)
+very_skeptical_forest_draws <- forest_draws_fn(very_skeptical.brm, "Very skeptical")
+very_skeptical_benefit <- benefit_fn(very_skeptical.brm)
+
+
+## Now for skeptical, assuming a prior RCT of n = 500 
+# First, to calculate the SE of the RCT we need to calculate the risk in treatment and control groups using formula: Rt = Rc*OR/Rc*(OR - 1) + 1
+rt <- (0.12*exp(0.18))/(0.12*(exp(0.18) - 1) + 1)
+## [1] 0.1403447
+
+## So the risk would increased from 12% to 14%. 
+
+se_skeptical <- sqrt((1/30) + (1/220) + (1/35) + (1/215))
+## 0.2666484
+
+skeptical_priors <- brms::prior(normal(0.18, 0.2666484), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+  
+skeptical.brm <- update(ma_full_weight.brm, prior = skeptical_priors)
+
+skeptical_draws <- draws_fn(skeptical.brm)
+skeptical_forest_draws <- forest_draws_fn(skeptical.brm, "Skeptical")
+skeptical_benefit <- benefit_fn(skeptical.brm)
+
+## Now, for neutral priors
+# neutral prior is defined so that 0.95 of the probability mass ranges from an odds ratio between 0.5 and 2.0. 
+# As done in https://ccforum.biomedcentral.com/articles/10.1186/s13054-022-04120-y#Sec12
+se_neutral <- 0.355
+neutral_priors <- brms::prior(normal(0, 0.355), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+  
+neutral.brm <- update(ma_full_weight.brm, prior = neutral_priors)
+
+neutral_draws <- draws_fn(neutral.brm)
+neutral_forest_draws <- forest_draws_fn(neutral.brm, "Neutral")
+neutral_benefit <- benefit_fn(neutral.brm)
+
+
+## Now for optimistic - we want an RCT of 500 people showing a -0.18 logOR reduction
+# First, to calculate the SE of the RCT we need to calculate the risk in treatment and control groups using formula: Rt = Rc*OR/Rc*(OR - 1) + 1
+rt <- (0.12*exp(-0.18))/(0.12*(exp(-0.18) - 1) + 1)
+## [1] 0.1022537
+
+# So our trial will have 12% event rate in control and 10% event rate in DEX group
+
+se_optimistic <- sqrt((1/30) + (1/220) + (1/25) + (1/225))
+
+## [1] 0.2869203
+
+optimistic_priors <- brms::prior(normal(-0.18, 0.2869203), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+  
+optimistic.brm <- update(ma_full_weight.brm, prior = optimistic_priors)
+optimistic_draws <- draws_fn(optimistic.brm)
+optimistic_forest_draws <- forest_draws_fn(optimistic.brm, "Optimistic")
+optimistic_benefit <- benefit_fn(optimistic.brm)
+
+## Now for very optimistic - an RCT of 1000 people showing a -0.27 logOR reduction
+# First, to calculate the SE of the RCT we need to calculate the risk in treatment and control groups using formula: Rt = Rc*OR/Rc*(OR - 1) + 1
+rt <- (0.12*exp(-0.27))/(0.12*(exp(-0.27) - 1) + 1)
+## [1] 0.09428264
+
+# So our trial will have 12% event rate in control and 9.4% event rate in DEX group
+
+se_very_optimistic <- sqrt((1/60) + (1/440) + (1/47) + (1/453))
+## [1] 0.2059696
+
+very_optimistic_priors <- brms::prior(normal(-0.27, 0.2059696), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+  
+very_optimistic.brm <- update(ma_full_weight.brm, prior = very_optimistic_priors)
+
+very_optimistic_draws <- draws_fn(very_optimistic.brm)
+very_optimistic_forest_draws <- forest_draws_fn(very_optimistic.brm, "Very optimistic")
+very_optimistic_benefit <- benefit_fn(very_optimistic.brm)
+
+## Now let's make the plots
+# First let's graph the priors
+reference_priors <- ggplot(data = data.frame(x = c(-10, 10)), aes(x)) +
+  geom_vline(xintercept = 1, color = "black", size = 1) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = 0, sd = 10)), color = "vague", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = 0.27, sd = se_very_skeptical)), color = "very skeptical", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = 0.18, sd = se_skeptical)), color = "skeptical", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = 0, sd = se_neutral)), color = "neutral", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = -0.18, sd = se_optimistic)), color = "optomistic", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = -0.27, sd = se_very_optimistic)), color = "very optomistic", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  scale_x_log10(breaks = c(0.1, 0.25, 0.5, 1, 2, 4, 7), expand = c(0, 0)) +
+  coord_cartesian(xlim = c(0.1, 7), ylim = c(1, 2)) +
+  ggdist::scale_thickness_shared() +
+  theme_light() +
+  theme(
+    axis.text.y = element_blank(),
+    legend.position = c(0.95, 0.9),  
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "lightgrey", color = "black")) +
+  labs(x = "Odds ratio", title = "A: Reference priors for logistic regression") +
+  ylab(NULL) +
+  scale_color_manual(values = RColorBrewer::brewer.pal(6, "Set2"),
+                     breaks = c("vague", "very skeptical", "skeptical", "neutral", "optomistic", "very optomistic"),
+                     labels = c("Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic"),
+                     name = "Prior") +
+  guides(color = guide_legend(override.aes = list(linetype = "solid", shape = NA)))
+
+ma_priors <- ggplot(data = data.frame(x = c(-10, 10)), aes(x)) +
+  geom_vline(xintercept = 1, color = "black", size = 1) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = -0.704, sd = 0.142)), color = "metafull", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = -0.704, sd = (0.142*2))), color = "metahalf", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = -0.704, sd = (0.142*4))), color = "metaquarter", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  scale_x_log10(breaks = c(0.1, 0.25, 0.5, 1, 2, 4, 7), expand = c(0, 0)) +
+  coord_cartesian(xlim = c(0.1, 7), ylim = c(1, 2)) +
+  ggdist::scale_thickness_shared() +
+  theme_light() +
+  theme(
+    axis.text.y = element_blank(),
+    legend.position = c(0.8, 0.9),  
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "lightgrey", color = "black")) +
+  labs(x = "Odds ratio", title = "B: Meta-analysis priors for logistic regression") +
+  ylab(NULL) +
+  scale_color_manual(values = RColorBrewer::brewer.pal(3, "Set1"),
+                     breaks = c("metafull", "metahalf", "metaquarter"),
+                     labels = c("Full weight", 
+                                "50% weight", 
+                                "25% weight"),
+                     name = "Prior") +
+  guides(color = guide_legend(override.aes = list(linetype = "solid", shape = NA)))
+
+# Now let's plot the posterior distributions of the odds ratios for each of these priors
+# First let's make a dataframe called tabdat with all of our things of interest
+tabdat_pre <- data.frame(subgroup = factor(c("Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")),
+                     decade_posterior_mean = IVdat_del$yi[IVdat_del$author1 == "Turan et al. 2020"],
+                     decade_posterior_sd = IVdat_del$sei[IVdat_del$author1 == "Turan et al. 2020"],
+                     prior_mean = c(0, 0.27, 0.18, 0, -0.18, -0.27, -0.704, -0.704, -0.704),
+                     prior_sd = c(10, se_very_skeptical, se_skeptical, se_neutral,
+                                  se_optimistic, se_very_optimistic, 0.142, 0.284, 0.568),
+                     posterior_estimate = c(vague_draws$estimate, very_skeptical_draws$estimate, skeptical_draws$estimate,
+                                            neutral_draws$estimate, optimistic_draws$estimate, very_optimistic_draws$estimate, 
+                                            ma_full_weight_draws$estimate, ma_half_weight_draws$estimate, ma_quarter_weight_draws$estimate),
+                     p_benefit = c(vague_benefit$prob_benefit, very_skeptical_benefit$prob_benefit, skeptical_benefit$prob_benefit,
+                                            neutral_benefit$prob_benefit, optimistic_benefit$prob_benefit, very_optimistic_benefit$prob_benefit, 
+                                            ma_full_weight_benefit$prob_benefit, ma_half_weight_benefit$prob_benefit, ma_quarter_weight_benefit$prob_benefit),
+                     p_harm = c(vague_benefit$prob_harm, very_skeptical_benefit$prob_harm, skeptical_benefit$prob_harm,
+                                            neutral_benefit$prob_harm, optimistic_benefit$prob_harm, very_optimistic_benefit$prob_harm, 
+                                            ma_full_weight_benefit$prob_harm, ma_half_weight_benefit$prob_harm, ma_quarter_weight_benefit$prob_harm),
+                     p_mcid_harm = c(vague_benefit$prob_mcid_harm, very_skeptical_benefit$prob_mcid_harm, skeptical_benefit$prob_mcid_harm,
+                                            neutral_benefit$prob_mcid_harm, optimistic_benefit$prob_mcid_harm, very_optimistic_benefit$prob_mcid_harm, 
+                                            ma_full_weight_benefit$prob_mcid_harm, ma_half_weight_benefit$prob_mcid_harm, ma_quarter_weight_benefit$prob_mcid_harm),
+                     p_mcid_benefit = c(vague_benefit$prob_mcid_benefit, very_skeptical_benefit$prob_mcid_benefit, skeptical_benefit$prob_mcid_benefit,
+                                            neutral_benefit$prob_mcid_benefit, optimistic_benefit$prob_mcid_benefit, very_optimistic_benefit$prob_mcid_benefit, 
+                                            ma_full_weight_benefit$prob_mcid_benefit, ma_half_weight_benefit$prob_mcid_benefit, ma_quarter_weight_benefit$prob_mcid_benefit)) %>%
+                    mutate(prior_mean_exp = as.numeric(sprintf('%.2f', exp(prior_mean))),
+                          prior_sd = as.numeric(sprintf('%.2f', prior_sd)),
+                          prior_mean_sd = paste0(sprintf('%.2f',prior_mean_exp), " ± ", prior_sd),
+                           p_benefit = paste0(p_benefit, "%"),
+                          p_harm = paste0(p_harm, "%"),
+                          p_mcid_benefit = paste0(p_mcid_benefit, "%"),
+                          p_mcid_harm = paste0(p_mcid_harm, "%"))
+
+# Make a table which I will need to make the geom_pointintervals
+draws_df <- rbind(vague_draws, very_skeptical_draws, skeptical_draws, neutral_draws,
+                                            optimistic_draws, very_optimistic_draws, 
+                                            ma_full_weight_draws, ma_half_weight_draws, ma_quarter_weight_draws)
+draws_df <- cbind(subgroup = factor(c("Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")),
+                  draws_df) %>%
+  mutate(subgroup = factor(subgroup, levels = c("Prior belief","Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")))
+
+new_row <- data.frame(subgroup = factor("Prior belief"),
+                      decade_posterior_mean = "",
+                     decade_posterior_sd = "",
+                     prior_mean = "",
+                     prior_mean_exp = "",
+                     prior_sd = "",
+                     prior_mean_sd = "Prior mean±SD",
+                      posterior_estimate = "Posterior 95%CrI",
+                     p_benefit = "P(any benefit)",
+                     p_mcid_benefit = "P(benefit >MCID)",
+                     p_harm = "P(any harm)",
+                     p_mcid_harm = "P(harm >MCID)")
+
+tabdat <- rbind(new_row, tabdat_pre) %>%
+  mutate(subgroup = factor(subgroup, levels = c("Prior belief","Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")))
+  
+
+# Now let's make a forest dataframe with our data for posterior estimates
+# First we need to combine all our forest draws into one long dataframe
+
+forest.data <- rbind(vague_forest_draws, very_skeptical_forest_draws, skeptical_forest_draws, neutral_forest_draws,
+                     optimistic_forest_draws, very_optimistic_forest_draws, ma_full_weight_forest_draws, 
+                     ma_half_weight_forest_draws, ma_quarter_weight_forest_draws) %>%
+  mutate(subgroup = factor(subgroup, levels = c("Vague", "Very skeptical", "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")))
+
+forest <- ggplot(aes(exp(b_groupdexmedetomidine), 
+           y = fct_relevel(subgroup, rev)), 
+       data = forest.data) +
+  geom_vline(xintercept = 1, color = "black", 
+             size = 0.7) +
+  stat_slab(aes(fill = after_stat(x < 1)), slab_colour = "black") +
+  geom_pointintervalh(aes(xmin = exp(.lower), 
+                          xmax = exp(.upper), 
+                          x = exp(b_groupdexmedetomidine)),
+                      data = draws_df, 
+                      col = "black", alpha = 1, position = position_nudge(y = -0.1)) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = decade_posterior_mean, sd = decade_posterior_sd)),
+                y = fct_relevel(subgroup, rev)), 
+            data = tabdat_pre, color = "purple", fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = prior_mean, sd = prior_sd)),
+                y = fct_relevel(subgroup, rev)), 
+            data = tabdat_pre, color = "grey30", fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  scale_x_log10(breaks = c(0.1, 0.25, 0.5, 1, 2, 4, 7), expand = c(0, 0)) +           
+  coord_cartesian(xlim=c(0.25, 4), ylim=c(1,10)) +
+  annotate("text", x = 0.5, y =10, label = "Favours\ndexmedetomidine") +
+  annotate("text", x = 2, y = 10,  label = "Favours\ncontrol") +
+  ggdist::scale_thickness_shared() +
+  theme_light() +
+  theme(axis.text.y = element_blank()) +
+  labs(x="Odds ratio (log scale)") +
+  ylab(NULL) +
+  theme(legend.position = "none")  +
+  guides(alpha = "none")
+
+prior_details <- ggplot(aes(y = fct_relevel(subgroup, rev)), 
+                   data = tabdat) +
+  geom_text(aes(x = 0, label = subgroup), hjust = 0,
+                        fontface = ifelse(tabdat$subgroup == "Prior belief", "bold", "plain")) +
+  geom_text(aes(x = 2, label = prior_mean_sd), hjust = 0, 
+            fontface = ifelse(tabdat$prior_mean_sd == "Prior mean±SD", "bold", "plain")) +
+  scale_color_identity() +
+  theme_void() +
+  coord_cartesian(xlim = c(0, 4))
+
+posteriors <- ggplot(aes(y = fct_relevel(subgroup, rev)), 
+                   data = tabdat) +
+  geom_text(aes(x = 0, label = posterior_estimate), hjust = 0,
+                        fontface = ifelse(tabdat$posterior_estimate == "Posterior 95%CrI", "bold", "plain")) +
+  geom_text(aes(x = 1, label = p_benefit), hjust = 0,
+                        fontface = ifelse(tabdat$p_benefit == "P(any benefit)", "bold", "plain")) +
+  geom_text(aes(x = 1.8, label = p_mcid_benefit), hjust = 0,
+                        fontface = ifelse(tabdat$p_mcid_benefit == "P(benefit >MCID)", "bold", "plain")) +
+  geom_text(aes(x = 2.8, label = p_harm), hjust = 0,
+                        fontface = ifelse(tabdat$p_harm == "P(any harm)", "bold", "plain")) +
+  geom_text(aes(x = 3.6, label = p_mcid_harm), hjust = 0,
+                        fontface = ifelse(tabdat$p_mcid_harm == "P(harm >MCID)", "bold", "plain")) +
+  scale_color_identity() +
+  theme_void() +
+  coord_cartesian(xlim = c(0, 4.2))
+
+library(patchwork)
+
+layout <- c(
+  patchwork::area(t = 0, l = 0, b = 15, r = 30),
+  patchwork::area(t = 0, l = 32, b = 15, r = 60), 
+  patchwork::area(t = 16, l = 0, b = 42, r = 15),
+  patchwork::area(t = 16, l = 15, b = 42, r = 28), 
+  patchwork::area(t = 16, l = 29, b = 42, r = 60))
+
+
+reference_priors + ma_priors + prior_details + forest  + posteriors + plot_layout(design = layout)
+
+```
+
+# Priors table description
+
+```{r priors_table}
+# First we need to calculate the ARRs
+# To do this we need to logORs that are required for each ARR
+# Let's start with the likelihood of a 8% decrease in delirium incidence
+Rc_decade <- 0.12
+
+arr_8_Rt <- Rc_decade - 0.08
+arr_8_or <- (arr_8_Rt*(Rc_decade - 1))/(Rc_decade*(arr_8_Rt - 1))
+arr_4_Rt <- Rc_decade - 0.04
+arr_4_or <- (arr_4_Rt*(Rc_decade - 1))/(Rc_decade*(arr_4_Rt - 1))
+arr_2_Rt <- Rc_decade - 0.02
+arr_2_or <- (arr_2_Rt*(Rc_decade - 1))/(Rc_decade*(arr_2_Rt - 1))
+ari_2_Rt <- Rc_decade + 0.02
+ari_2_or <- (ari_2_Rt*(Rc_decade - 1))/(Rc_decade*(ari_2_Rt - 1))
+ari_4_Rt <- Rc_decade + 0.04
+ari_4_or <- (ari_4_Rt*(Rc_decade - 1))/(Rc_decade*(ari_4_Rt - 1))
+ari_8_Rt <- Rc_decade + 0.08
+ari_8_or <- (ari_8_Rt*(Rc_decade - 1))/(Rc_decade*(ari_8_Rt - 1))
+
+probs_fn <- function(brm) {
+      brm %>% 
+      tidy_draws() %>% 
+      summarise(arr_8 = 100*mean(b_groupdexmedetomidine < log(arr_8_or)),
+            arr_4 = 100*mean(b_groupdexmedetomidine < log(arr_4_or)),
+            arr_2 = 100*mean(b_groupdexmedetomidine < log(arr_2_or)),
+            arr_below_0 = 100*mean(b_groupdexmedetomidine < log(1)),
+            arr_above_0 = 100*mean(b_groupdexmedetomidine > log(1)),
+            ari_2 = 100*mean(b_groupdexmedetomidine > log(ari_2_or)),
+            ari_4 = 100*mean(b_groupdexmedetomidine > log(ari_4_or)),
+            ari_8 = 100*mean(b_groupdexmedetomidine > log(ari_8_or)))
+}
+
+probs <- rbind(probs_fn(vague.brm), probs_fn(very_skeptical.brm), probs_fn(skeptical.brm),
+               probs_fn(neutral.brm), probs_fn(optimistic.brm), probs_fn(very_optimistic.brm),
+               probs_fn(ma_full_weight.brm), probs_fn(ma_half_weight.brm), probs_fn(ma_quarter_weight.brm)) %>%
+  mutate(across(where(is.numeric), ~sprintf("%.1f", .)))
+
+tabdat <- data.frame(prior = factor(c("Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")),
+                     prior_equivalent = c("No information imposed on posterior estimate", 
+                                          "Equivalent to a hypothetical n = 1000 RCT showing a 31% increase in odds of delirium",
+                                          "Equivalent to a hypothetical n = 500 RCT showing a 20% increase in odds of delirium",
+                                          "95% of the density lies between an odds ratio of 0.5 to 2.0",
+                                          "Equivalent to a hypothetical n = 500 RCT showing a 14% decrease in odds of delirium",
+                                           "Equivalent to a hypothetical n = 1000 RCT showing a 24% decrease in odds of delirium",
+                                          "Meta-analysis of n = 1654 participants across 13 trials given it's full weight as a prior",
+                                          "Meta-analysis of n = 1654 participants across 13 trials given 50% weight as a prior",
+                                          "Meta-analysis of n = 1654 participants across 13 trials given 25% weight as a prior"),
+                     rationale = c("Does not favour one prior belief over another", 
+                                          "This effect size is 1.5 times the MCID for harm (logOR of 0.27)",
+                                          "This effect size is the MCID for harm (logOR of 0.18)",
+                                          "Plausible values for the effect are likely, with values closer to the null most likely",
+                                          "This effect size is the MCID for benefit (logOR of -0.18)",
+                                           "This effect size is the 1.5 times MCID for benefit (logOR of -0.27)",
+                                   "This is analgous to the result of a standard meta-analysis of all the 14 studies, including the DECADE trial",
+                                   "This downweights the effect of the meta-analysis by 50% to account for percieved issues with the included trials",
+                                   "This downweights the effect of the meta-analysis by 75% to account for percieved issues with the included trials"),
+                     probs)
+
+colnames(tabdat) <- c("Prior", "Prior equivalent", "Rationale for prior", "ARR <8%", "ARR <4%",
+                        "ARR <2%", "ARR <0%", "ARI >0%", "ARI >2%", "ARI >4%", "ARI >8%")
+
+tabdat %>%
+    gt(rowname_col = "Prior") %>%
+   tab_row_group(
+    label = "Meta-analysis-derived priors",
+    rows = starts_with("MA")) %>%
+  row_group_order(groups = c(NA, "Meta-analysis-derived priors")) %>%
+  tab_options(row_group.default_label = "Reference priors") %>%
+  tab_spanner(
+    label = "Posterior probability that the change in absolute risk from DECADE is above/below a certain threshold",
+    columns = starts_with("AR")) %>%
+  gt::tab_style(
+    style = gt::cell_text(weight = "bold"),
+    locations = gt::cells_row_groups(groups = everything())) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "grey"),
+      cell_text(weight = "bold")
+      ),
+    locations = cells_row_groups())
+                     
+```
+
