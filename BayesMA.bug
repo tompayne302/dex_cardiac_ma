@@ -1,0 +1,5 @@
+model {for (i in 1:n) { 
+      yi[i] ~ dnorm(theta.i[i], 1 / vi[i])
+      theta.i[i] ~ dnorm(theta, 1/tsq)} 
+      theta  ~ dnorm(mu, prec)
+      tsq ~ dnorm(0, 1/0.25) T(0,)}
