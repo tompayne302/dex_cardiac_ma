@@ -236,6 +236,12 @@ IVdat_mortality <- escalc(measure="OR", ai=dex_mortality, bi=dex_no_mortality,
 
 m.brm_mortality <- update(m.brm, newdata = IVdat_mortality)
 
+IVdat_mortality_age <- IVdat_mortality[!is.na(IVdat_mortality$age_60),]
+m.brm_mortality_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_mortality_age, prior = priors_metareg)
+
+IVdat_mortality_dose <- IVdat_mortality[!is.na(IVdat_mortality$dex_dose),]
+m.brm_mortality_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_mortality_dose, prior = priors_metareg)
+
 ## Bradycardia outcome
 dat_bradycardia_na_removed <- dat[!is.na(dat$dex_bradycardia)&!is.na(dat$control_bradycardia),]
 IVdat_bradycardia <- escalc(measure="OR", ai=dex_bradycardia, bi=dex_no_bradycardia, 
@@ -245,6 +251,12 @@ IVdat_bradycardia <- escalc(measure="OR", ai=dex_bradycardia, bi=dex_no_bradycar
                    author1 = paste(author, year, sep = " "))
 
 m.brm_bradycardia <-  update(m.brm, newdata = IVdat_bradycardia)
+
+IVdat_bradycardia_age <- IVdat_bradycardia[!is.na(IVdat_bradycardia$age_60),]
+m.brm_bradycardia_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_bradycardia_age, prior = priors_metareg)
+
+IVdat_bradycardia_dose <- IVdat_bradycardia[!is.na(IVdat_bradycardia$dex_dose),]
+m.brm_bradycardia_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_bradycardia_dose, prior = priors_metareg)
 
 ## hypotension outcome
 dat_hypotension_na_removed <- dat[!is.na(dat$dex_hypotension)&!is.na(dat$control_hypotension),]
@@ -256,6 +268,12 @@ IVdat_hypotension <- escalc(measure="OR", ai=dex_hypotension, bi=dex_no_hypotens
 
 m.brm_hypotension <-  update(m.brm, newdata = IVdat_hypotension)
 
+IVdat_hypotension_age <- IVdat_hypotension[!is.na(IVdat_hypotension$age_60),]
+m.brm_hypotension_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_hypotension_age, prior = priors_metareg)
+
+IVdat_hypotension_dose <- IVdat_hypotension[!is.na(IVdat_hypotension$dex_dose),]
+m.brm_hypotension_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_hypotension_dose, prior = priors_metareg)
+
 ## arrythmia outcome
 dat_arrhythmia_na_removed <- dat[!is.na(dat$dex_arrhythmia)&!is.na(dat$control_arrhythmia),]
 IVdat_arrhythmia <- escalc(measure="OR", ai=dex_arrhythmia, bi=dex_no_arrhythmia, 
@@ -265,6 +283,12 @@ IVdat_arrhythmia <- escalc(measure="OR", ai=dex_arrhythmia, bi=dex_no_arrhythmia
                    author1 = paste(author, year, sep = " "))
 
 m.brm_arrhythmia <-  update(m.brm, newdata = IVdat_arrhythmia)
+
+IVdat_arrhythmia_age <- IVdat_arrhythmia[!is.na(IVdat_arrhythmia$age_60),]
+m.brm_arrhythmia_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_arrhythmia_age, prior = priors_metareg)
+
+IVdat_arrhythmia_dose <- IVdat_arrhythmia[!is.na(IVdat_arrhythmia$dex_dose),]
+m.brm_arrhythmia_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_arrhythmia_dose, prior = priors_metareg)
 
 ## delirium duration outcome
 dat_del_duration_na_removed <- dat[!is.na(dat$dex_delirium_duration_days_mean)&!is.na(dat$control_delirium_duration_days_mean)
@@ -279,6 +303,12 @@ IVdat_del_duration <- escalc(measure="MD", m1i=dex_delirium_duration_days_mean, 
 
 m.brm_del_duration <-  update(m.brm, newdata = IVdat_del_duration)
 
+IVdat_del_duration_age <- IVdat_del_duration[!is.na(IVdat_del_duration$age_60),]
+m.brm_del_duration_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_del_duration_age, prior = priors_metareg)
+
+IVdat_del_duration_dose <- IVdat_del_duration[!is.na(IVdat_del_duration$dex_dose),]
+m.brm_del_duration_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_del_duration_dose, prior = priors_metareg)
+
 ## time to extubation outcome
 dat_extub_time_na_removed <- dat[!is.na(dat$dex_timetoextubation_mean)&!is.na(dat$control_timetoextubation_mean)
                                  &!is.na(dat$dex_timetoextubation_sd)&!is.na(dat$control_timetoextubation_sd),]
@@ -290,6 +320,12 @@ IVdat_extub_time <- escalc(measure="MD", m1i=dex_timetoextubation_mean, sd1i=dex
                    author1 = paste(author, year, sep = " "))
 
 m.brm_extub_time <-  update(m.brm, newdata = IVdat_extub_time)
+
+IVdat_extub_time_age <- IVdat_extub_time[!is.na(IVdat_extub_time$age_60),]
+m.brm_extub_time_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_extub_time_age, prior = priors_metareg)
+
+IVdat_extub_time_dose <- IVdat_extub_time[!is.na(IVdat_extub_time$dex_dose),]
+m.brm_extub_time_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_extub_time_dose, prior = priors_metareg)
 
 ## hospital stay outcome
 dat_hosp_stay_na_removed <- dat[!is.na(dat$dex_hospital_days_mean)&!is.na(dat$control_hospital_days_mean)
@@ -303,6 +339,12 @@ IVdat_hosp_stay <- escalc(measure="MD", m1i=dex_hospital_days_mean, sd1i=dex_hos
 
 m.brm_hosp_stay <-  update(m.brm, newdata = IVdat_hosp_stay)
 
+IVdat_hosp_stay_age <- IVdat_hosp_stay[!is.na(IVdat_hosp_stay$age_60),]
+m.brm_hosp_stay_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_hosp_stay_age, prior = priors_metareg)
+
+IVdat_hosp_stay_dose <- IVdat_hosp_stay[!is.na(IVdat_hosp_stay$dex_dose),]
+m.brm_hosp_stay_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_hosp_stay_dose, prior = priors_metareg)
+
 ## ICU stay outcome
 dat_icu_stay_na_removed <- dat[!is.na(dat$dex_icu_days_mean)&!is.na(dat$control_icu_days_mean)
                                  &!is.na(dat$dex_icu_days_sd)&!is.na(dat$control_icu_days_sd),]
@@ -315,8 +357,16 @@ IVdat_icu_stay <- escalc(measure="MD", m1i=dex_icu_days_mean, sd1i=dex_icu_days_
 
 m.brm_icu_stay <-  update(m.brm, newdata = IVdat_icu_stay)
 
+IVdat_icu_stay_age <- IVdat_icu_stay[!is.na(IVdat_icu_stay$age_60),]
+m.brm_icu_stay_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_icu_stay_age, prior = priors_metareg)
+
+IVdat_icu_stay_dose <- IVdat_icu_stay[!is.na(IVdat_icu_stay$dex_dose),]
+m.brm_icu_stay_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_icu_stay_dose, prior = priors_metareg)
+
 # Excluding high RoB
 m.brm_low_rob <- update(m.brm, newdata = IVdat_del %>% filter(!overall == "x"))
+
+m.brm_excluding_decade_low_rob <- update(m.brm, newdata = IVdat_del %>% filter(!overall == "x", !author == "Turan"))
 
 m.brm_age_low_rob <-  update(m.brm_age, newdata = IVdat_del %>% filter(!overall == "x"))
 m.brm_dose_low_rob <-  update(m.brm_dose, newdata = IVdat_del %>% filter(!overall == "x"))
@@ -1568,9 +1618,6 @@ grid.arrange(stop_effect, stop_futility, ncol =2)
 
 ## Analysis
 
-::: panel-tabset
-## All studies
-
 ```{r}
 #| label: sequential-analysis-all-studies
 
@@ -1624,20 +1671,54 @@ Bayesian.seqMA <- function(yi, vi, delta,
                                 theta.hpd=theta.HPD.95,tau.sq=tsq.median, 
                                 tau.sq.hpd=tsq.HPD)}
 
-Bayesian.seqMA(yi=IVdat_del[,132], vi=IVdat_del[,133], delta=-0.18)
-                             
-```
+# Create function to calculate number of studies
+count_na <- function(dataframe) {
+  return(dataframe %>% nrow())
+}
 
-## Excluding studies at high risk of bias
+dat_all <- Bayesian.seqMA(yi=IVdat_del[,132], vi=IVdat_del[,133], delta=-0.18)
 
-```{r}
-#| label: sequential-analysis-low-rob
+df_all <- data.frame(cbind("subgroup" = "All studies", "outcome" = dat_all$result, "no_studies" = dat_all$studies, 
+                           "total_no_studies" = count_na(IVdat_del),
+                       "mu" = exp(dat_all$theta), "mu_ci_lb" = exp(dat_all$theta.hpd[[1]]), 
+                       "mu_ci_ub" = exp(dat_all$theta.hpd[[2]]), "tau_sq" = sqrt(dat_all$tau.sq),
+                       "tau_sq_lb" = sqrt(dat_all$tau.sq.hpd[[1]]), "tau_sq_ub" = sqrt(dat_all$tau.sq.hpd[[2]]))) %>%
+   mutate(across(5:10, as.numeric),
+          across(where(is.numeric), ~sprintf("%.2f", .)),
+          mu_conf = paste0(mu, " (", mu_ci_lb, ", ", mu_ci_ub, ")"),
+          tau_conf = paste0(tau_sq, " (", tau_sq_lb, ", ", tau_sq_ub, ")")) %>%
+  dplyr::select(subgroup, outcome, no_studies, total_no_studies, mu_conf, tau_conf)
+
+## Repeat same excluding low RoB studies
 IVdat_del_low_rob <- IVdat_del %>%
   filter(!overall == "x") 
-Bayesian.seqMA(yi=IVdat_del_low_rob[,132], vi=IVdat_del_low_rob[,133], delta=-0.18)
+
+dat_low_rob <- Bayesian.seqMA(yi=IVdat_del_low_rob[,132], vi=IVdat_del_low_rob[,133], delta=-0.18)
+
+df_low_rob <- data.frame(cbind("subgroup" = "Excluding studies at high RoB", "outcome" = dat_low_rob$result, "no_studies" = dat_low_rob$studies, 
+                               "total_no_studies" = count_na(IVdat_del_low_rob),
+                       "mu" = exp(dat_low_rob$theta), "mu_ci_lb" = exp(dat_low_rob$theta.hpd[[1]]), 
+                       "mu_ci_ub" = exp(dat_low_rob$theta.hpd[[2]]), "tau_sq" = sqrt(dat_low_rob$tau.sq),
+                       "tau_sq_lb" = sqrt(dat_low_rob$tau.sq.hpd[[1]]), "tau_sq_ub" = sqrt(dat_low_rob$tau.sq.hpd[[2]]))) %>%
+   mutate(across(5:10, as.numeric),
+          across(where(is.numeric), ~sprintf("%.2f", .)),
+          mu_conf = paste0(mu, " (", mu_ci_lb, ", ", mu_ci_ub, ")"),
+          tau_conf = paste0(tau_sq, " (", tau_sq_lb, ", ", tau_sq_ub, ")")) %>%
+  dplyr::select(subgroup, outcome, no_studies,total_no_studies, mu_conf, tau_conf)
+
+rbind(df_all, df_low_rob) %>%
+  rename("Subgroup" = subgroup, "Conclusion" = outcome, "Number of studies to reach conclusion" = no_studies,
+         "Total number of studies in subgroup" = total_no_studies,
+         "Median odds ratio (95%CrI) at stopping" = mu_conf, "τ (95% CrI) at stopping" = tau_conf) %>%
+  gt() %>%
+    tab_style(
+    style = list(
+      cell_fill(color = "white"),
+      cell_text(weight = "bold")
+      ),
+    locations = cells_column_labels())
                              
 ```
-:::
 
 ## Semi-Bayesian sequential analysis
 
@@ -1712,8 +1793,7 @@ for (i in 1:length(y)){
 
 df <- data.frame(seq.ma.appbayes(y = IVdat_del[,132], var = IVdat_del[,133], 
                 Vmax = Vmax_logor, H = H_logor, eta = 1.5, lambda=1))
-
-gt(df)
+ gt(df)
 
 ```
 
@@ -2028,7 +2108,7 @@ logstic_regression.brm <- brms::brm(delirium ~ 0 + Intercept + group,
 
 We also want to present analyses downweighting the effect of the meta-analysis prior. This is done to account for perceived issues with the meta-analysis - such as publication bias (which we have assessed to be very significant), and the inclusion of low-quality studies. To do this, I artificially inflated the standard deviation parameter ${\tau}$. I multiplied ${\tau}$ by 2 to obtain the 50% downweighting, and multiplied ${\tau}$ by 4 to get the 75% downweighting.
 
-With all that in mind, I have the following data-derived priors for DECADE's results, which are shown further down in @fig-priors-plots:
+With all that in mind, I have the following data-derived priors for DECADE's results, which are shown further down in @fig-priors-plots-all:
 
 -   Meta-analysis prior with the full weight: $N({\mu}, {\tau})$
 
@@ -2131,10 +2211,14 @@ With all that in mind, I have used the following reference priors for the DECADE
 
 ## Prior plots
 
-@fig-priors-plots shows the distributions of the priors. The top two panels show the distribution of the (A) reference priors, and (B) meta-analysis priors. The bottom forest plot shows the posterior distribution of DECADE's results for each prior The grey region denotes the ROPE. The purple lines show the DECADE's findings when analysed alone. The grey lines represent the prior. Regions of the posterior that suggest benefit (OR \< 1) are shaded in blue and those that suggest harm (OR \> 1) are shaded in red. The probabilities of any harm or benefit, and the harm or benefit exceeding the MCID, are shown for each prior.
+@fig-priors-plots-all shows the distributions of the priors. The top two panels show the distribution of the (A) reference priors, and (B) meta-analysis priors. The bottom forest plot shows the posterior distribution of DECADE's results for each prior. The grey region denotes the ROPE. The purple lines show the DECADE's findings when analysed alone. The grey lines represent the prior. Regions of the posterior that suggest benefit (OR \< 1) are shaded in blue and those that suggest harm (OR \> 1) are shaded in red. The probabilities of any harm or benefit, and the harm or benefit exceeding the MCID, are shown for each prior. Analyses of all studies and excluding studies at high risk of bias are provided.
+
+::: panel-tabset
+
+## All studies
 
 ```{r}
-#| label: fig-priors-plots
+#| label: fig-priors-plots-all
 #| fig-width: 12
 #| fig-height: 10
 #| cache: TRUE
@@ -2554,6 +2638,437 @@ reference_priors + ma_priors + prior_details + forest  + posteriors + plot_layou
 
 ```
 
+## Excluding studies at high risk of bias
+```{r}
+#| label: fig-priors-plots-low-rob
+#| fig-width: 12
+#| fig-height: 10
+#| cache: TRUE
+#| results: 'hide'
+#| message: FALSE
+#| warning: FALSE
+#| errors: FALSE
+#| fig-cap: |
+#|   Plots of the distributions of the reference and meta-analysis priors, excluding studies at high risk of bias.
+
+## Create a dataframe with the DECADE trial's results
+group <- c(rep("dexmedetomidine", 398), rep("placebo", 396))
+delirium <- c(rep(1, 67), rep(0, 331), rep(1, 46), rep(0, 350))
+df <- data.frame(group, delirium)
+
+df$group <- factor(df$group, levels = c("placebo", "dexmedetomidine"))
+
+## First create our MA priors
+## start with the fully weighted MA prior
+median_mu_excl_decade <- m.brm_excluding_decade_low_rob %>%
+  spread_draws(b_Intercept) %>%
+  median_qi() %>%
+  dplyr::select(b_Intercept)
+#  -0.410
+
+median_tau_excl_decade <- m.brm_excluding_decade_low_rob %>%
+  spread_draws(sd_author1__Intercept) %>%
+  median_qi() %>%
+  dplyr::select(sd_author1__Intercept)
+# 0.137
+
+## Make a function to extract the posterior estimates
+
+draws_fn <- function(brm) {
+  brm %>%
+  spread_draws(b_groupdexmedetomidine) %>%
+  median_qi() %>% 
+  mutate(estimate = paste0(sprintf('%.2f', exp(b_groupdexmedetomidine)), 
+                  ' [', sprintf('%.2f', exp(.lower)),
+                  ', ', sprintf('%.2f', exp(.upper)), ']'))
+}
+
+# Also we need a function to extract the draws for the forest plot
+forest_draws_fn <- function(brm, prior) {
+  brm %>%
+  spread_draws(b_groupdexmedetomidine) %>%
+    dplyr::select(b_groupdexmedetomidine) %>%
+    mutate(subgroup = prior)
+    
+}
+
+## and a function to calculate probability of benefit
+benefit_fn <- function(brm) {
+  brm %>% 
+  tidy_draws() %>% 
+  summarise(prob_benefit = sprintf('%.1f', 100*mean(b_groupdexmedetomidine < 0)),
+            prob_harm = sprintf('%.1f', 100*mean(b_groupdexmedetomidine > 0)),
+            prob_mcid_harm = sprintf('%.1f', 100*mean(b_groupdexmedetomidine > 0.18)),
+            prob_mcid_benefit = sprintf('%.1f', 100*mean(b_groupdexmedetomidine < -0.18)))
+}
+
+
+full_weight_ma_priors <- brms::prior(normal(-0.410, 0.137), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+
+ma_full_weight.brm_low_rob <- brm(delirium ~ 0 + Intercept + group,
+             data = df,
+             family = bernoulli(link = "logit"),
+             prior = full_weight_ma_priors,
+              iter = 4000,
+              backend = "cmdstanr", 
+              cores = parallel::detectCores(),
+              chains = 4,
+              seed = 123)
+
+ma_full_weight_draws <- draws_fn(ma_full_weight.brm_low_rob)
+
+ma_full_weight_forest_draws <- forest_draws_fn(ma_full_weight.brm_low_rob, "MA (100% weight)")
+ma_full_weight_benefit <- benefit_fn(ma_full_weight.brm_low_rob)
+
+## Now for the 50% weight (get this by multiplying SD by 2)
+
+half_weight_ma_priors <- brms::prior(normal(-0.410, 0.137*2), class = b, coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+
+ma_half_weight.brm_low_rob <- update(ma_full_weight.brm_low_rob, prior = half_weight_ma_priors)
+
+ma_half_weight_draws <- draws_fn(ma_half_weight.brm_low_rob)
+ma_half_weight_forest_draws <- forest_draws_fn(ma_half_weight.brm_low_rob, "MA (50% weight)")
+ma_half_weight_benefit <- benefit_fn(ma_half_weight.brm_low_rob)
+
+
+## Now for the 25% weight (get this by multiplying SD by 4)
+
+quarter_weight_ma_priors <- brms::prior(normal(-0.410, 0.137*4), class = b, coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+
+ma_quarter_weight.brm_low_rob <- update(ma_full_weight.brm_low_rob, prior = quarter_weight_ma_priors)
+
+ma_quarter_weight_draws <- draws_fn(ma_quarter_weight.brm_low_rob)
+ma_quarter_weight_forest_draws <- forest_draws_fn(ma_quarter_weight.brm_low_rob, "MA (25% weight)")
+ma_quarter_weight_benefit <- benefit_fn(ma_quarter_weight.brm_low_rob)
+
+## Now for our reference priors
+# Start with vague with SD = 10
+vague_priors <- brms::prior(normal(0,10), class = b, coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+
+vague.brm <- brm(delirium ~ 0 + Intercept + group,
+             data = df,
+             family = bernoulli(link = "logit"),
+             prior = vague_priors,
+              iter = 4000,
+              backend = "cmdstanr", 
+              cores = parallel::detectCores(),
+              chains = 4,
+              seed = 123)
+
+vague_draws <- draws_fn(vague.brm)
+vague_forest_draws <- forest_draws_fn(vague.brm, "Vague")
+vague_benefit <- benefit_fn(vague.brm)
+
+# Now very skeptical
+
+## We want an RCT of 100 people showing a 0.27 logOR increase in delirium (1.5*MCID of Cohen's D = 0.1)
+# First, to calculate the SE of the RCT we need to calculate the risk in treatment and control groups using formula: Rt = Rc*OR/Rc*(OR - 1) + 1
+rt <- (0.12*exp(0.27))/(0.12*(exp(0.27) - 1) + 1)
+## [1] 0.1515584
+
+## So the risk would increased from 12% to 15.156%. 
+## To obtain a prior RCT of n = 1000 showing no effect using the base rate of 12% delirium from DECADE
+## We need to use the formula: SE = sqrt(1/a + 1/b + 1/c + 1d)
+
+se_very_skeptical <- sqrt((1/60) + (1/440) + (1/76) + (1/424))
+## 0.1856227
+
+very_skeptical_priors <- brms::prior(normal(0.27, 0.1856227), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+  
+very_skeptical.brm <- update(vague.brm, prior = very_skeptical_priors)
+
+very_skeptical_draws <- draws_fn(very_skeptical.brm)
+very_skeptical_forest_draws <- forest_draws_fn(very_skeptical.brm, "Very skeptical")
+very_skeptical_benefit <- benefit_fn(very_skeptical.brm)
+
+
+## Now for skeptical, assuming a prior RCT of n = 500 
+# First, to calculate the SE of the RCT we need to calculate the risk in treatment and control groups using formula: Rt = Rc*OR/Rc*(OR - 1) + 1
+rt <- (0.12*exp(0.18))/(0.12*(exp(0.18) - 1) + 1)
+## [1] 0.1403447
+
+## So the risk would increased from 12% to 14%. 
+
+se_skeptical <- sqrt((1/30) + (1/220) + (1/35) + (1/215))
+## 0.2666484
+
+skeptical_priors <- brms::prior(normal(0.18, 0.2666484), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+  
+skeptical.brm <- update(vague.brm, prior = skeptical_priors)
+
+skeptical_draws <- draws_fn(skeptical.brm)
+skeptical_forest_draws <- forest_draws_fn(skeptical.brm, "Skeptical")
+skeptical_benefit <- benefit_fn(skeptical.brm)
+
+## Now, for neutral priors
+# neutral prior is defined so that 0.95 of the probability mass ranges from an odds ratio between 0.5 and 2.0. 
+# As done in https://ccforum.biomedcentral.com/articles/10.1186/s13054-022-04120-y#Sec12
+se_neutral <- 0.355
+neutral_priors <- brms::prior(normal(0, 0.355), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+  
+neutral.brm <- update(vague.brm, prior = neutral_priors)
+
+neutral_draws <- draws_fn(neutral.brm)
+neutral_forest_draws <- forest_draws_fn(neutral.brm, "Neutral")
+neutral_benefit <- benefit_fn(neutral.brm)
+
+
+## Now for optimistic - we want an RCT of 500 people showing a -0.18 logOR reduction
+# First, to calculate the SE of the RCT we need to calculate the risk in treatment and control groups using formula: Rt = Rc*OR/Rc*(OR - 1) + 1
+rt <- (0.12*exp(-0.18))/(0.12*(exp(-0.18) - 1) + 1)
+## [1] 0.1022537
+
+# So our trial will have 12% event rate in control and 10% event rate in DEX group
+
+se_optimistic <- sqrt((1/30) + (1/220) + (1/25) + (1/225))
+
+## [1] 0.2869203
+
+optimistic_priors <- brms::prior(normal(-0.18, 0.2869203), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+  
+optimistic.brm <- update(vague.brm, prior = optimistic_priors)
+optimistic_draws <- draws_fn(optimistic.brm)
+optimistic_forest_draws <- forest_draws_fn(optimistic.brm, "Optimistic")
+optimistic_benefit <- benefit_fn(optimistic.brm)
+
+## Now for very optimistic - an RCT of 1000 people showing a -0.27 logOR reduction
+# First, to calculate the SE of the RCT we need to calculate the risk in treatment and control groups using formula: Rt = Rc*OR/Rc*(OR - 1) + 1
+rt <- (0.12*exp(-0.27))/(0.12*(exp(-0.27) - 1) + 1)
+## [1] 0.09428264
+
+# So our trial will have 12% event rate in control and 9.4% event rate in DEX group
+
+se_very_optimistic <- sqrt((1/60) + (1/440) + (1/47) + (1/453))
+## [1] 0.2059696
+
+very_optimistic_priors <- brms::prior(normal(-0.27, 0.2059696), coef = "groupdexmedetomidine") +
+                brms::prior(normal(0,1), class = b)
+  
+very_optimistic.brm <- update(vague.brm, prior = very_optimistic_priors)
+
+very_optimistic_draws <- draws_fn(very_optimistic.brm)
+very_optimistic_forest_draws <- forest_draws_fn(very_optimistic.brm, "Very optimistic")
+very_optimistic_benefit <- benefit_fn(very_optimistic.brm)
+
+## Now let's make the plots
+# First let's graph the priors
+reference_priors <- ggplot(data = data.frame(x = c(-10, 10)), aes(x)) +
+  geom_vline(xintercept = 1, color = "black", size = 1) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = 0, sd = 10)), color = "vague", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = 0.27, sd = se_very_skeptical)), color = "very skeptical", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = 0.18, sd = se_skeptical)), color = "skeptical", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = 0, sd = se_neutral)), color = "neutral", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = -0.18, sd = se_optimistic)), color = "optomistic", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = -0.27, sd = se_very_optimistic)), color = "very optomistic", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  scale_x_log10(breaks = c(0.1, 0.25, 0.5, 1, 2, 4, 7), expand = c(0, 0)) +
+  coord_cartesian(xlim = c(0.1, 7), ylim = c(1, 2)) +
+  ggdist::scale_thickness_shared() +
+  theme_light() +
+  theme(
+    axis.text.y = element_blank(),
+    legend.position = c(0.95, 0.9),  
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "lightgrey", color = "black")) +
+  labs(x = "Odds ratio", title = "A: Reference priors for logistic regression") +
+  ylab(NULL) +
+  geom_vline(xintercept = c(0.84, 1.20), linetype = "dotted", color = "grey30") +
+  annotate("rect", xmin = 0.84, xmax = 1.20, ymin = -Inf, ymax = Inf, fill = "grey", alpha = 0.2) +
+  scale_color_manual(values = RColorBrewer::brewer.pal(6, "Set2"),
+                     breaks = c("vague", "very skeptical", "skeptical", "neutral", "optomistic", "very optomistic"),
+                     labels = c("Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic"),
+                     name = "Prior") +
+  guides(color = guide_legend(override.aes = list(linetype = "solid", shape = NA)))
+
+ma_priors <- ggplot(data = data.frame(x = c(-10, 10)), aes(x)) +
+  geom_vline(xintercept = 1, color = "black", size = 1) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = -0.410, sd = 0.137)), color = "metafull", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = -0.410, sd = (0.137*2))), color = "metahalf", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = -0.410, sd = (0.137*4))), color = "metaquarter", y = 1),
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  scale_x_log10(breaks = c(0.1, 0.25, 0.5, 1, 2, 4, 7), expand = c(0, 0)) +
+  coord_cartesian(xlim = c(0.1, 7), ylim = c(1, 2)) +
+  ggdist::scale_thickness_shared() +
+  theme_light() +
+  theme(
+    axis.text.y = element_blank(),
+    legend.position = c(0.8, 0.9),  
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "lightgrey", color = "black")) +
+  labs(x = "Odds ratio", title = "B: Meta-analysis priors for logistic regression") +
+  ylab(NULL) +
+  geom_vline(xintercept = c(0.84, 1.20), linetype = "dotted", color = "grey30") +
+  annotate("rect", xmin = 0.84, xmax = 1.20, ymin = -Inf, ymax = Inf, fill = "grey", alpha = 0.2) +
+  scale_color_manual(values = RColorBrewer::brewer.pal(3, "Set1"),
+                     breaks = c("metafull", "metahalf", "metaquarter"),
+                     labels = c("Full weight", 
+                                "50% weight", 
+                                "25% weight"),
+                     name = "Prior") +
+  guides(color = guide_legend(override.aes = list(linetype = "solid", shape = NA)))
+
+# Now let's plot the posterior distributions of the odds ratios for each of these priors
+# First let's make a dataframe called tabdat with all of our things of interest
+tabdat_pre <- data.frame(subgroup = factor(c("Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")),
+                     decade_posterior_mean = IVdat_del$yi[IVdat_del$author1 == "Turan 2020"],
+                     decade_posterior_sd = IVdat_del$sei[IVdat_del$author1 == "Turan 2020"],
+                     prior_mean = c(0, 0.27, 0.18, 0, -0.18, -0.27, -0.410, -0.410, -0.410),
+                     prior_sd = c(10, se_very_skeptical, se_skeptical, se_neutral,
+                                  se_optimistic, se_very_optimistic, 0.137, 0.137*2, 0.137*4),
+                     posterior_estimate = c(vague_draws$estimate, very_skeptical_draws$estimate, skeptical_draws$estimate,
+                                            neutral_draws$estimate, optimistic_draws$estimate, very_optimistic_draws$estimate, 
+                                            ma_full_weight_draws$estimate, ma_half_weight_draws$estimate, ma_quarter_weight_draws$estimate),
+                     p_benefit = c(vague_benefit$prob_benefit, very_skeptical_benefit$prob_benefit, skeptical_benefit$prob_benefit,
+                                            neutral_benefit$prob_benefit, optimistic_benefit$prob_benefit, very_optimistic_benefit$prob_benefit, 
+                                            ma_full_weight_benefit$prob_benefit, ma_half_weight_benefit$prob_benefit, ma_quarter_weight_benefit$prob_benefit),
+                     p_harm = c(vague_benefit$prob_harm, very_skeptical_benefit$prob_harm, skeptical_benefit$prob_harm,
+                                            neutral_benefit$prob_harm, optimistic_benefit$prob_harm, very_optimistic_benefit$prob_harm, 
+                                            ma_full_weight_benefit$prob_harm, ma_half_weight_benefit$prob_harm, ma_quarter_weight_benefit$prob_harm),
+                     p_mcid_harm = c(vague_benefit$prob_mcid_harm, very_skeptical_benefit$prob_mcid_harm, skeptical_benefit$prob_mcid_harm,
+                                            neutral_benefit$prob_mcid_harm, optimistic_benefit$prob_mcid_harm, very_optimistic_benefit$prob_mcid_harm, 
+                                            ma_full_weight_benefit$prob_mcid_harm, ma_half_weight_benefit$prob_mcid_harm, ma_quarter_weight_benefit$prob_mcid_harm),
+                     p_mcid_benefit = c(vague_benefit$prob_mcid_benefit, very_skeptical_benefit$prob_mcid_benefit, skeptical_benefit$prob_mcid_benefit,
+                                            neutral_benefit$prob_mcid_benefit, optimistic_benefit$prob_mcid_benefit, very_optimistic_benefit$prob_mcid_benefit, 
+                                            ma_full_weight_benefit$prob_mcid_benefit, ma_half_weight_benefit$prob_mcid_benefit, ma_quarter_weight_benefit$prob_mcid_benefit)) %>%
+                    mutate(prior_mean_exp = as.numeric(sprintf('%.2f', exp(prior_mean))),
+                          prior_sd = as.numeric(sprintf('%.2f', prior_sd)),
+                          prior_mean_sd = paste0(sprintf('%.2f',prior_mean_exp), " ± ", prior_sd),
+                           p_benefit = paste0(p_benefit, "%"),
+                          p_harm = paste0(p_harm, "%"),
+                          p_mcid_benefit = paste0(p_mcid_benefit, "%"),
+                          p_mcid_harm = paste0(p_mcid_harm, "%"))
+
+# Make a table which I will need to make the geom_pointintervals
+draws_df <- rbind(vague_draws, very_skeptical_draws, skeptical_draws, neutral_draws,
+                                            optimistic_draws, very_optimistic_draws, 
+                                            ma_full_weight_draws, ma_half_weight_draws, ma_quarter_weight_draws)
+draws_df <- cbind(subgroup = factor(c("Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")),
+                  draws_df) %>%
+  mutate(subgroup = factor(subgroup, levels = c("Prior belief","Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")))
+
+new_row <- data.frame(subgroup = factor("Prior belief"),
+                      decade_posterior_mean = "",
+                     decade_posterior_sd = "",
+                     prior_mean = "",
+                     prior_mean_exp = "",
+                     prior_sd = "",
+                     prior_mean_sd = "Prior mean±SD",
+                      posterior_estimate = "Posterior 95%CrI",
+                     p_benefit = "P(any benefit)",
+                     p_mcid_benefit = "P(benefit >MCID)",
+                     p_harm = "P(any harm)",
+                     p_mcid_harm = "P(harm >MCID)")
+
+tabdat <- rbind(new_row, tabdat_pre) %>%
+  mutate(subgroup = factor(subgroup, levels = c("Prior belief","Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")))
+  
+
+# Now let's make a forest dataframe with our data for posterior estimates
+# First we need to combine all our forest draws into one long dataframe
+
+forest.data <- rbind(vague_forest_draws, very_skeptical_forest_draws, skeptical_forest_draws, neutral_forest_draws,
+                     optimistic_forest_draws, very_optimistic_forest_draws, ma_full_weight_forest_draws, 
+                     ma_half_weight_forest_draws, ma_quarter_weight_forest_draws) %>%
+  mutate(subgroup = factor(subgroup, levels = c("Vague", "Very skeptical", "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")))
+
+forest <- ggplot(aes(exp(b_groupdexmedetomidine), 
+           y = fct_relevel(subgroup, rev)), 
+       data = forest.data) +
+  geom_vline(xintercept = 1, color = "black", 
+             size = 0.7) +
+  stat_slab(aes(fill = after_stat(x < 1)), slab_colour = "black") +
+  geom_pointintervalh(aes(xmin = exp(.lower), 
+                          xmax = exp(.upper), 
+                          x = exp(b_groupdexmedetomidine)),
+                      data = draws_df, 
+                      col = "black", alpha = 1, position = position_nudge(y = -0.1)) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = decade_posterior_mean, sd = decade_posterior_sd)),
+                y = fct_relevel(subgroup, rev)), 
+            data = tabdat_pre, color = "purple", fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = prior_mean, sd = prior_sd)),
+                y = fct_relevel(subgroup, rev)), 
+            data = tabdat_pre, color = "grey30", fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  scale_x_log10(breaks = c(0.1, 0.25, 0.5, 1, 2, 4, 7), expand = c(0, 0)) +           
+  coord_cartesian(xlim=c(0.25, 4), ylim=c(1,10)) +
+  annotate("text", x = 0.5, y =10, label = "Favours\ndexmedetomidine") +
+  annotate("text", x = 2, y = 10,  label = "Favours\ncontrol") +
+  ggdist::scale_thickness_shared() +
+  theme_light() +
+  theme(axis.text.y = element_blank()) +
+  labs(x="Odds ratio (log scale)") +
+  ylab(NULL) +
+  theme(legend.position = "none")  +
+  guides(alpha = "none") +
+  geom_vline(xintercept = c(0.84, 1.20), linetype = "dotted", color = "grey30") +
+  annotate("rect", xmin = 0.84, xmax = 1.20, ymin = -Inf, ymax = Inf, fill = "grey", alpha = 0.2)
+
+prior_details <- ggplot(aes(y = fct_relevel(subgroup, rev)), 
+                   data = tabdat) +
+  geom_text(aes(x = 0, label = subgroup), hjust = 0,
+                        fontface = ifelse(tabdat$subgroup == "Prior belief", "bold", "plain")) +
+  geom_text(aes(x = 2, label = prior_mean_sd), hjust = 0, 
+            fontface = ifelse(tabdat$prior_mean_sd == "Prior mean±SD", "bold", "plain")) +
+  scale_color_identity() +
+  theme_void() +
+  coord_cartesian(xlim = c(0, 4))
+
+posteriors <- ggplot(aes(y = fct_relevel(subgroup, rev)), 
+                   data = tabdat) +
+  geom_text(aes(x = 0, label = posterior_estimate), hjust = 0,
+                        fontface = ifelse(tabdat$posterior_estimate == "Posterior 95%CrI", "bold", "plain")) +
+  geom_text(aes(x = 1, label = p_benefit), hjust = 0,
+                        fontface = ifelse(tabdat$p_benefit == "P(any benefit)", "bold", "plain")) +
+  geom_text(aes(x = 1.8, label = p_mcid_benefit), hjust = 0,
+                        fontface = ifelse(tabdat$p_mcid_benefit == "P(benefit >MCID)", "bold", "plain")) +
+  geom_text(aes(x = 2.8, label = p_harm), hjust = 0,
+                        fontface = ifelse(tabdat$p_harm == "P(any harm)", "bold", "plain")) +
+  geom_text(aes(x = 3.6, label = p_mcid_harm), hjust = 0,
+                        fontface = ifelse(tabdat$p_mcid_harm == "P(harm >MCID)", "bold", "plain")) +
+  scale_color_identity() +
+  theme_void() +
+  coord_cartesian(xlim = c(0, 4.2))
+
+library(patchwork)
+
+layout <- c(
+  patchwork::area(t = 0, l = 0, b = 15, r = 30),
+  patchwork::area(t = 0, l = 32, b = 15, r = 60), 
+  patchwork::area(t = 16, l = 0, b = 42, r = 15),
+  patchwork::area(t = 16, l = 15, b = 42, r = 28), 
+  patchwork::area(t = 16, l = 29, b = 42, r = 60))
+
+reference_priors + ma_priors + prior_details + forest  + posteriors + plot_layout(design = layout)
+
+```
+
+:::
+
 ## ARR table
 
 Below I provide direct probability statements for the DECADE trial's results given each priors I specified above. I consider absolute risk reductions (ARRs) of up to 8% or more and absolute risk increases (ARIs) of up to 8% or more. All ARRs in @tbl-arr below use the control group rate for delirium incidence from the DECADE trial (12%). So, an ARR of 8% would be a reduction from 12% in the control group to 4% in the dexmedetomidine group, and an ARI of 8% would be a increase from 12% in the control group to 20% in the dexmedetomidine group.
@@ -2595,42 +3110,52 @@ probs_fn <- function(brm) {
 
 probs <- rbind(probs_fn(vague.brm), probs_fn(very_skeptical.brm), probs_fn(skeptical.brm),
                probs_fn(neutral.brm), probs_fn(optimistic.brm), probs_fn(very_optimistic.brm),
-               probs_fn(ma_full_weight.brm), probs_fn(ma_half_weight.brm), probs_fn(ma_quarter_weight.brm)) %>%
+               probs_fn(ma_full_weight.brm), probs_fn(ma_half_weight.brm), probs_fn(ma_quarter_weight.brm),
+               probs_fn(ma_full_weight.brm_low_rob), probs_fn(ma_half_weight.brm_low_rob), 
+               probs_fn(ma_quarter_weight.brm_low_rob)) %>%
   mutate(across(where(is.numeric), ~sprintf("%.1f", .)))
 
 tabdat <- data.frame(prior = factor(c("Vague", "Very skeptical", 
                                 "Skeptical", "Neutral", "Optimistic", 
-                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")),
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)", 
+                                "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")),
+                     Group = c("Reference priors", "Reference priors","Reference priors","Reference priors",
+                               "Reference priors","Reference priors",
+                               "Meta-analysis priors (all studies)", "Meta-analysis priors (all studies)", 
+                               "Meta-analysis priors (all studies)",
+                               "Meta-analysis priors (excluding high RoB)", "Meta-analysis priors (excluding high RoB)", 
+                               "Meta-analysis priors (excluding high RoB)"),
                      prior_equivalent = c("No information imposed on posterior estimate", 
                                           "Equivalent to a hypothetical n = 1000 RCT showing a 31% increase in odds of delirium",
                                           "Equivalent to a hypothetical n = 500 RCT showing a 20% increase in odds of delirium",
                                           "95% of the density lies between an odds ratio of 0.5 to 2.0",
                                           "Equivalent to a hypothetical n = 500 RCT showing a 14% decrease in odds of delirium",
-                                           "Equivalent to a hypothetical n = 1000 RCT showing a 24% decrease in odds of delirium",
-                                          "Meta-analysis of n = 1654 participants across 13 trials given it's full weight as a prior",
-                                          "Meta-analysis of n = 1654 participants across 13 trials given 50% weight as a prior",
-                                          "Meta-analysis of n = 1654 participants across 13 trials given 25% weight as a prior"),
+                                          "Equivalent to a hypothetical n = 1000 RCT showing a 24% decrease in odds of delirium",
+                                          "Meta-analysis of n = 3488 participants across 15 trials given its full weight as a prior",
+                                          "Meta-analysis of n = 3488 participants across 15 trials given 50% weight as a prior",
+                                          "Meta-analysis of n = 3488 participants across 15 trials given 25% weight as a prior",
+                                          "Meta-analysis of n = 3128 participants across 10 trials (excluding high RoB) given its full weight as a prior",
+                                          "Meta-analysis of n = 3128 participants across 10 trials (excluding high RoB) given 50% weight as a prior",
+                                          "Meta-analysis of n = 3128 participants across 10 trials (excluding high RoB) given 25% weight as a prior"),
                      rationale = c("Does not favour one prior belief over another", 
                                           "This effect size is 1.5 times the MCID for harm (logOR of 0.27)",
                                           "This effect size is the MCID for harm (logOR of 0.18)",
                                           "Plausible values for the effect are likely, with values closer to the null most likely",
                                           "This effect size is the MCID for benefit (logOR of -0.18)",
                                            "This effect size is the 1.5 times MCID for benefit (logOR of -0.27)",
-                                   "This is analgous to the result of a standard meta-analysis of all the 14 studies, including the DECADE trial",
+                                   "This is analgous to the result of a standard meta-analysis of all the 15 studies, including the DECADE trial",
+                                   "This downweights the effect of the meta-analysis by 50% to account for percieved issues with the included trials",
+                                   "This downweights the effect of the meta-analysis by 75% to account for percieved issues with the included trials",
+                                   "This is analgous to the result of a standard meta-analysis of all the 10 studies, including the DECADE trial",
                                    "This downweights the effect of the meta-analysis by 50% to account for percieved issues with the included trials",
                                    "This downweights the effect of the meta-analysis by 75% to account for percieved issues with the included trials"),
                      probs)
 
-colnames(tabdat) <- c("Prior", "Prior equivalent", "Rationale for prior", "ARR >8%", "ARR >4%",
+colnames(tabdat) <- c("Prior", "Group", "Prior equivalent", "Rationale for prior", "ARR >8%", "ARR >4%",
                         "ARR >2%", "ARR >0%", "ARI >0%", "ARI >2%", "ARI >4%", "ARI >8%")
 
 tabdat %>%
-    gt(rowname_col = "Prior") %>%
-   tab_row_group(
-    label = "Meta-analysis-derived priors",
-    rows = starts_with("MA")) %>%
-  row_group_order(groups = c(NA, "Meta-analysis-derived priors")) %>%
-  tab_options(row_group.default_label = "Reference priors") %>%
+    gt(rowname_col = "Prior", groupname_col = "Group") %>%
   tab_spanner(
     label = "Posterior probability that the change in absolute risk from DECADE is above/below a certain threshold",
     columns = starts_with("AR")) %>%
@@ -2642,7 +3167,13 @@ tabdat %>%
       cell_fill(color = "grey"),
       cell_text(weight = "bold")
       ),
-    locations = cells_row_groups())
+    locations = cells_row_groups()) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "white"),
+      cell_text(weight = "bold")
+      ),
+    locations = cells_column_labels())
                      
 ```
 
@@ -2653,6 +3184,10 @@ Now let's zoom on the relative distributions of the mean effect when we include 
 I consider four density functions: meta-analysis including DECADE, meta-analysis excluding DECADE, DECADE alone, and the DECADE shrinkage estimate from the meta-analysis.
 
 The x-axis is common to the upper and lower graphs so one is able to read off the probability of any odds ratio for any of the four curves. @fig-ecdfs shows the results. The grey region denotes the ROPE ($log(OR) = ± 0.18$).
+
+::: panel-tabset
+
+## All studies
 
 ```{r}
 #| label: fig-ecdfs
@@ -2776,6 +3311,132 @@ layout <- c(
 ecdfs + ma_curves + plot_layout(design = layout)
 
 ```
+
+## Excluding studies at high risk of bias
+
+```{r}
+#| label: fig-ecdfs-low-rob
+#| fig-width: 10
+#| fig-height: 10
+#| fig-cap: |
+#|   Empirical cumulative distribution function (ECDF) plots including and excluding DECADE, and excluding studies at high risk of bias.
+
+## First, the MA with the DECADE trial
+
+post.samples_decade <- as_draws_df(m.brm_low_rob, c("b_Intercept", "sd_author1__Intercept"))
+
+study.draws_decade <- spread_draws(m.brm_low_rob, r_author1[author1,], b_Intercept) %>% 
+  mutate(b_Intercept = r_author1 + b_Intercept)
+
+pooled.effect.draws_decade <- spread_draws(m.brm_low_rob, b_Intercept) %>% 
+  mutate(author1 = "Pooled Effect")
+
+forest.data_decade <- bind_rows(study.draws_decade, 
+                         pooled.effect.draws_decade) %>% 
+   ungroup() %>%
+   mutate(author1 = str_replace_all(author1, "[.]", " ")) %>% 
+   mutate(author1 = reorder(author1, b_Intercept)) %>%
+   filter(author1 == c("Turan 2020", "Pooled Effect"))
+
+## Now, without DECADE
+## First, the MA with the DECADE trial
+post.samples_no_decade <- as_draws_df(m.brm_excluding_decade_low_rob, c("b_Intercept", "sd_author1__Intercept"))
+
+study.draws_no_decade <- spread_draws(m.brm_excluding_decade_low_rob, r_author1[author1,], b_Intercept) %>% 
+  mutate(b_Intercept = r_author1 + b_Intercept)
+
+pooled.effect.draws_no_decade <- spread_draws(m.brm_excluding_decade_low_rob, b_Intercept) %>% 
+  mutate(author1 = "Pooled Effect")
+
+forest.data_no_decade <- bind_rows(study.draws_no_decade, 
+                         pooled.effect.draws_no_decade) %>% 
+   ungroup() %>%
+   mutate(author1 = str_replace_all(author1, "[.]", " ")) %>% 
+   mutate(author1 = reorder(author1, b_Intercept)) %>%
+   filter(author1 == c("Pooled Effect"))
+
+## Now to make the plot combining the 4 curves of interest
+decade_posterior_mean <-  IVdat_del_low_rob$yi[IVdat_del_low_rob$author1 == "Turan 2020"]
+decade_posterior_sd <- IVdat_del_low_rob$sei[IVdat_del_low_rob$author1 == "Turan 2020"]
+
+ma_curves <- ggplot(data = data.frame(x = c(-10, 10)), aes(x)) +
+    stat_slab(aes(x = exp(b_Intercept), color = "pooled_incl_decade"), data = forest.data_decade %>% filter(author1 == "Pooled Effect"),
+                      slab_linewidth = 0.9, fill = NA, alpha = 0.7) +
+   stat_slab(aes(x = exp(b_Intercept), color = "decade_shrink"), data = forest.data_decade %>% filter(author1 == "Turan 2020"), 
+                    slab_linewidth = 0.9, fill = NA, alpha = 0.7) +
+   stat_slab(aes(x = exp(b_Intercept), color = "pooled_excl_decade"), data = forest.data_no_decade, 
+                    slab_linewidth = 0.9, fill = NA, alpha = 0.7) +
+  stat_slab(aes(xdist = exp(distributional::dist_normal(mean = decade_posterior_mean, sd = decade_posterior_sd)), color = "decade_alone"), 
+            fill = NA, slab_linewidth = 0.9, inherit.aes = FALSE) +
+  scale_x_log10(breaks = c(0.25, 0.5, 1, 2, 4), expand = c(0, 0)) +
+  coord_cartesian(xlim = c(0.25, 4)) +
+  ggdist::scale_thickness_shared() +
+  geom_vline(xintercept=1) +
+  annotate("text", x = 0.35, y = 0.9, label = "Favours\ndexmedetomidine", hjust = 0, size = 4) +
+  annotate("text", x = 2, y = 0.9, label = "Favours\ncontrol", hjust = 0, size = 4) +
+  theme_light() +
+  theme(
+    axis.text.y = element_blank(),
+    legend.position = "none") +
+  labs(x = "Odds ratio") +
+  ylab(NULL) +
+  geom_vline(xintercept = c(0.84, 1.20), linetype = "dotted", color = "grey30") +
+  annotate("rect", xmin = 0.84, xmax = 1.20, ymin = -Inf, ymax = Inf, fill = "grey", alpha = 0.2) +
+  scale_color_manual(values = RColorBrewer::brewer.pal(4, "Set1"),
+                     breaks = c("pooled_incl_decade", "decade_shrink", "pooled_excl_decade",
+                                "decade_alone"),
+                     labels = c("Pooled including DECADE", "DECADE shrinkage", 
+                                "Pooled excluding DECADE", "DECADE alone"),
+                     name = "Posterior") 
+
+## Now for the ECDFs
+
+# Compute density values for the normal curve of DECADE
+x <- seq(-2, 2, length.out = 100000)
+density <- rnorm(x, mean = IVdat_del_low_rob[IVdat_del_low_rob$author == "Turan", "yi"], 
+                 sd = IVdat_del_low_rob[IVdat_del_low_rob$author == "Turan", "sei"])
+df_density <- data.frame(x = x, density = density)
+
+library(scales)
+
+ecdfs <- ggplot(aes(x = exp(b_Intercept), color = "pooled_excl_decade"), data = forest.data_no_decade) +
+  stat_ecdf(geom = "step") +
+  stat_ecdf(aes(x = exp(b_Intercept), color = "pooled_incl_decade"), data = forest.data_decade %>% filter(author1 == "Pooled Effect"), geom = "step") +
+  stat_ecdf(aes(x = exp(b_Intercept), color = "decade_shrink"), data = forest.data_decade %>% filter(author1 == "Turan 2020"), geom = "step") +
+  stat_ecdf(aes(x = exp(density), color = "decade_alone"), data = df_density, geom = "step") +
+  scale_y_continuous(name = "Probability that mean OR < x", limits = c(0, 1), breaks = seq(0, 1, 0.1), labels = percent_format(),
+                     sec.axis = sec_axis(~ 1 - ., name = "Probability that mean OR > x",
+                                          breaks = seq(0, 1, 0.1), labels = percent_format())) +
+  geom_vline(xintercept = 1) +
+  scale_x_log10(breaks = c(0.25, 0.5, 1, 2, 4), expand = c(0, 0)) +
+  coord_cartesian(xlim = c(0.25, 4)) +
+  theme_light() +
+  theme(
+    legend.position = c(0.9, 0.5),  
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "lightgrey", color = "black")) +
+  theme(axis.line = element_blank(),           # remove axis lines
+        axis.text.x = element_blank(),         # remove x-axis tick labels
+        axis.ticks.x = element_blank()) +
+  xlab(NULL) +
+  geom_vline(xintercept = c(0.84, 1.20), linetype = "dotted", color = "grey30") +
+  annotate("rect", xmin = 0.84, xmax = 1.20, ymin = -Inf, ymax = Inf, fill = "grey", alpha = 0.2) +
+  scale_color_manual(values = RColorBrewer::brewer.pal(4, "Set1"),
+                     breaks = c("pooled_incl_decade", "decade_shrink", "pooled_excl_decade",
+                                "decade_alone"),
+                     labels = c("Pooled including DECADE", "DECADE shrinkage", 
+                                "Pooled excluding DECADE", "DECADE alone"),
+                     name = "Posterior") +
+  guides(color = guide_legend(override.aes = list(linetype = "solid", shape = NA)))
+
+layout <- c(
+  area(t = 0, l = 0, b = 12, r = 30),
+  area(t = 13, l = 0, b = 20, r = 30))
+
+ecdfs + ma_curves + plot_layout(design = layout)
+
+```
+:::
 
 # Metaregression
 
@@ -3717,10 +4378,6 @@ probs_overall_bradycardia =
             rrr_nnt_25_overall_bradycardia = 100*mean(b_Intercept > log(nnt_25_or_overall_bradycardia)),
             rrr_nnt_10_overall_bradycardia = 100*mean(b_Intercept > log(nnt_10_or_overall_bradycardia)))
 
-## Create the 'age' dataframe
-IVdat_bradycardia_age <- IVdat_bradycardia[!is.na(IVdat_bradycardia$age_60),]
-m.brm_bradycardia_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_bradycardia_age, prior = priors_metareg)
-
 # First, age below 60
 Rc_age_below_60_bradycardia <- median(IVdat_bradycardia[IVdat_bradycardia$age_60=="No" &
                                                !is.na(IVdat_bradycardia$age_60),]$control_bradycardia_rate)
@@ -3760,12 +4417,6 @@ probs_age_above_60_bradycardia =
             rrr_nnt_25_age_above_60_bradycardia = 100*mean(b_age_60Yes > log(nnt_25_or_age_above_60_bradycardia)),
             rrr_nnt_10_age_above_60_bradycardia = 100*mean(b_age_60Yes > log(nnt_10_or_age_above_60_bradycardia)),
             )
-
-
-## Now dose
-## Create the 'dose' dataframe
-IVdat_bradycardia_dose <- IVdat_bradycardia[!is.na(IVdat_bradycardia$dex_dose),]
-m.brm_bradycardia_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_bradycardia_dose, prior = priors_metareg)
 
 # High dose
 Rc_high_dose_bradycardia <- median(IVdat_bradycardia[IVdat_bradycardia$dex_dose=="High" &
@@ -3846,10 +4497,6 @@ probs_overall_hypotension =
             rrr_nnt_10_overall_hypotension = 100*mean(b_Intercept > log(nnt_10_or_overall_hypotension)),
             )
 
-## Create the 'age' dataframe
-IVdat_hypotension_age <- IVdat_hypotension[!is.na(IVdat_hypotension$age_60),]
-m.brm_hypotension_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_hypotension_age, prior = priors_metareg)
-
 # First, age below 60
 Rc_age_below_60_hypotension <- median(IVdat_hypotension[IVdat_hypotension$age_60=="No" &
                                                !is.na(IVdat_hypotension$age_60),]$control_hypotension_rate)
@@ -3889,12 +4536,6 @@ probs_age_above_60_hypotension =
             rrr_nnt_25_age_above_60_hypotension = 100*mean(b_age_60Yes > log(nnt_25_or_age_above_60_hypotension)),
             rrr_nnt_10_age_above_60_hypotension = 100*mean(b_age_60Yes > log(nnt_10_or_age_above_60_hypotension)),
             )
-
-
-## Now dose
-## Create the 'dose' dataframe
-IVdat_hypotension_dose <- IVdat_hypotension[!is.na(IVdat_hypotension$dex_dose),]
-m.brm_hypotension_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_hypotension_dose, prior = priors_metareg)
 
 # High dose
 Rc_high_dose_hypotension <- median(IVdat_hypotension[IVdat_hypotension$dex_dose=="High" &
@@ -4011,10 +4652,6 @@ probs_overall_arrhythmia =
             rrr_nnt_10_overall_arrhythmia = 100*mean(b_Intercept < log(nnt_10_or_overall_arrhythmia)),
             )
 
-## Create the 'age' dataframe
-IVdat_arrhythmia_age <- IVdat_arrhythmia[!is.na(IVdat_arrhythmia$age_60),]
-m.brm_arrhythmia_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_arrhythmia_age, prior = priors_metareg)
-
 # First, age below 60
 Rc_age_below_60_arrhythmia <- median(IVdat_arrhythmia[IVdat_arrhythmia$age_60=="No" &
                                                !is.na(IVdat_arrhythmia$age_60),]$control_arrhythmia_rate)
@@ -4054,12 +4691,6 @@ probs_age_above_60_arrhythmia =
             rrr_nnt_25_age_above_60_arrhythmia = 100*mean(b_age_60Yes < log(nnt_25_or_age_above_60_arrhythmia)),
             rrr_nnt_10_age_above_60_arrhythmia = 100*mean(b_age_60Yes < log(nnt_10_or_age_above_60_arrhythmia)),
             )
-
-
-## Now dose
-## Create the 'dose' dataframe
-IVdat_arrhythmia_dose <- IVdat_arrhythmia[!is.na(IVdat_arrhythmia$dex_dose),]
-m.brm_arrhythmia_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_arrhythmia_dose, prior = priors_metareg)
 
 # High dose
 Rc_high_dose_arrhythmia <- median(IVdat_arrhythmia[IVdat_arrhythmia$dex_dose=="High" &
@@ -4139,10 +4770,6 @@ probs_overall_mortality =
             rrr_nnt_25_overall_mortality = 100*mean(b_Intercept < log(nnt_25_or_overall_mortality)),
             rrr_nnt_10_overall_mortality = 100*mean(b_Intercept < log(nnt_10_or_overall_mortality)))
 
-## Create the 'age' dataframe
-IVdat_mortality_age <- IVdat_mortality[!is.na(IVdat_mortality$age_60),]
-m.brm_mortality_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_mortality_age, prior = priors_metareg)
-
 # First, age below 60
 Rc_age_below_60_mortality <- median(IVdat_mortality[IVdat_mortality$age_60=="No" &
                                                !is.na(IVdat_mortality$age_60),]$control_mortality_rate)
@@ -4180,12 +4807,6 @@ probs_age_above_60_mortality =
             rrr_nnt_50_age_above_60_mortality = 100*mean(b_age_60Yes < log(nnt_50_or_age_above_60_mortality)),
             rrr_nnt_25_age_above_60_mortality = 100*mean(b_age_60Yes < log(nnt_25_or_age_above_60_mortality)),
             rrr_nnt_10_age_above_60_mortality = 100*mean(b_age_60Yes < log(nnt_10_or_age_above_60_mortality)))
-
-
-## Now dose
-## Create the 'dose' dataframe
-IVdat_mortality_dose <- IVdat_mortality[!is.na(IVdat_mortality$dex_dose),]
-m.brm_mortality_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_mortality_dose, prior = priors_metareg)
 
 # High dose
 Rc_high_dose_mortality <- median(IVdat_mortality[IVdat_mortality$dex_dose=="High" &
@@ -4270,7 +4891,7 @@ prob_tbl %>%
 
 We also have favourable continuous secondary outcomes. Unlike our binary outcomes, we need to choose specific mean differences that we think would be meaningful. Obviously this would be different for each outcome.
 
-Before we decide on this, let's focus on mean differences on 0.5, 1, and 2. @tbl-benefit-probs-secondary shows the results.
+Before we decide on this, let's focus on mean differences on 0.5, 1, and 2. @tbl-benefit-probs-secondary-cont shows the results.
 
 ```{r}
 #| label: tbl-benefit-probs-secondary-cont
@@ -4288,10 +4909,6 @@ probs_overall_del_duration =
             md_1_overall_del_duration = 100*mean(b_Intercept < -1),
             md_2_overall_del_duration = 100*mean(b_Intercept < -2))
 
-## Create the 'age' dataframe
-IVdat_del_duration_age <- IVdat_del_duration[!is.na(IVdat_del_duration$age_60),]
-m.brm_del_duration_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_del_duration_age, prior = priors_metareg)
-
 # First, age below 60
 probs_age_below_60_del_duration = 
   spread_draws(m.brm_del_duration_age, b_age_60No) |> 
@@ -4307,11 +4924,6 @@ probs_age_above_60_del_duration =
             md_0.5_age_above_60_del_duration = 100*mean(b_age_60Yes < -0.5),
             md_1_age_above_60_del_duration = 100*mean(b_age_60Yes < -1),
             md_2_age_above_60_del_duration = 100*mean(b_age_60Yes < -2))
-
-## Now dose
-## Create the 'dose' dataframe
-IVdat_del_duration_dose <- IVdat_del_duration[!is.na(IVdat_del_duration$dex_dose),]
-m.brm_del_duration_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_del_duration_dose, prior = priors_metareg)
 
 # High dose
 probs_high_dose_del_duration = 
@@ -4351,10 +4963,6 @@ probs_overall_extub_time =
             md_1_overall_extub_time = 100*mean(b_Intercept < -1),
             md_2_overall_extub_time = 100*mean(b_Intercept < -2))
 
-## Create the 'age' dataframe
-IVdat_extub_time_age <- IVdat_extub_time[!is.na(IVdat_extub_time$age_60),]
-m.brm_extub_time_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_extub_time_age, prior = priors_metareg)
-
 # First, age below 60
 probs_age_below_60_extub_time = 
   spread_draws(m.brm_extub_time_age, b_age_60No) |> 
@@ -4370,11 +4978,6 @@ probs_age_above_60_extub_time =
             md_0.5_age_above_60_extub_time = 100*mean(b_age_60Yes < -0.5),
             md_1_age_above_60_extub_time = 100*mean(b_age_60Yes < -1),
             md_2_age_above_60_extub_time = 100*mean(b_age_60Yes < -2))
-
-## Now dose
-## Create the 'dose' dataframe
-IVdat_extub_time_dose <- IVdat_extub_time[!is.na(IVdat_extub_time$dex_dose),]
-m.brm_extub_time_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_extub_time_dose, prior = priors_metareg)
 
 # High dose
 probs_high_dose_extub_time = 
@@ -4414,10 +5017,6 @@ probs_overall_hosp_stay =
             md_1_overall_hosp_stay = 100*mean(b_Intercept < -1),
             md_2_overall_hosp_stay = 100*mean(b_Intercept < -2))
 
-## Create the 'age' dataframe
-IVdat_hosp_stay_age <- IVdat_hosp_stay[!is.na(IVdat_hosp_stay$age_60),]
-m.brm_hosp_stay_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_hosp_stay_age, prior = priors_metareg)
-
 # First, age below 60
 probs_age_below_60_hosp_stay = 
   spread_draws(m.brm_hosp_stay_age, b_age_60No) |> 
@@ -4433,11 +5032,6 @@ probs_age_above_60_hosp_stay =
             md_0.5_age_above_60_hosp_stay = 100*mean(b_age_60Yes < -0.5),
             md_1_age_above_60_hosp_stay = 100*mean(b_age_60Yes < -1),
             md_2_age_above_60_hosp_stay = 100*mean(b_age_60Yes < -2))
-
-## Now dose
-## Create the 'dose' dataframe
-IVdat_hosp_stay_dose <- IVdat_hosp_stay[!is.na(IVdat_hosp_stay$dex_dose),]
-m.brm_hosp_stay_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_hosp_stay_dose, prior = priors_metareg)
 
 # High dose
 probs_high_dose_hosp_stay = 
@@ -4477,10 +5071,6 @@ probs_overall_icu_stay =
             md_1_overall_icu_stay = 100*mean(b_Intercept < -1),
             md_2_overall_icu_stay = 100*mean(b_Intercept < -2))
 
-## Create the 'age' dataframe
-IVdat_icu_stay_age <- IVdat_icu_stay[!is.na(IVdat_icu_stay$age_60),]
-m.brm_icu_stay_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_icu_stay_age, prior = priors_metareg)
-
 # First, age below 60
 probs_age_below_60_icu_stay = 
   spread_draws(m.brm_icu_stay_age, b_age_60No) |> 
@@ -4496,11 +5086,6 @@ probs_age_above_60_icu_stay =
             md_0.5_age_above_60_icu_stay = 100*mean(b_age_60Yes < -0.5),
             md_1_age_above_60_icu_stay = 100*mean(b_age_60Yes < -1),
             md_2_age_above_60_icu_stay = 100*mean(b_age_60Yes < -2))
-
-## Now dose
-## Create the 'dose' dataframe
-IVdat_icu_stay_dose <- IVdat_icu_stay[!is.na(IVdat_icu_stay$dex_dose),]
-m.brm_icu_stay_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_icu_stay_dose, prior = priors_metareg)
 
 # High dose
 probs_high_dose_icu_stay = 
@@ -4565,11 +5150,18 @@ Like many publication bias tests, **this actually assesses funnel plot asymmetry
 
 There are various options for inputs. We will use multiplicative heterogeneity rather than additive heterogeneity. We will use a half-normal prior with 0.5 scale parameter (Cauchy distributions are not available but the difference is likely trivial). The default priors for the regression intercept and slope are used: $N(0, 10^2)$.
 
-As you can see, the 95%CrI for the slope excludes 0. This suggests the presence of publication bias.
+As you can see in @tbl-bayesian-regression, the 95%CrI for the slope excludes 0, whether looking at all studies or excluding studies at high risk of bias. This suggests the presence of publication bias.
 
-```{r small_study_effects, cache=TRUE, message=FALSE, warning=FALSE, errors=FALSE}
+## All studies
+```{r}
+#| label: tbl-bayesian-regression
+#| tbl-cap: Bayesian regression testing to assess for small study effects.
+#| message: FALSE
+#| warning: FALSE
+#| errors: FALSE
+
 library(altmeta)
-df <- pb.bayesian.binary(n00 = dex_no_del, n01 = dex_del, 
+df_all <- pb.bayesian.binary(n00 = dex_no_del, n01 = dex_del, 
                    n10 = control_no_del, n11 = control_del, data = IVdat_del,
   sig.level = 0.05, method = "bay", het = "mul",
   sd.prior = "hn", n.adapt = 1000, n.chains = 3,
@@ -4577,32 +5169,73 @@ df <- pb.bayesian.binary(n00 = dex_no_del, n01 = dex_del,
   phi = 0.5, coda = FALSE,
   traceplot = FALSE)
 
-dat <- data.frame(estimate = sprintf('%.2f', df[[1]]),
-                  confint = paste0(sprintf('%.2f', df$ci.bay[[1]]), ", ", sprintf('%.2f', df$ci.bay[[2]])))
+df_low_rob <- pb.bayesian.binary(n00 = dex_no_del, n01 = dex_del, 
+                   n10 = control_no_del, n11 = control_del, data = IVdat_del_low_rob,
+  sig.level = 0.05, method = "bay", het = "mul",
+  sd.prior = "hn", n.adapt = 1000, n.chains = 3,
+  n.burnin = 5000, n.iter = 100000, thin = 10,
+  phi = 0.5, coda = FALSE,
+  traceplot = FALSE)
 
-colnames(dat) <- c("Estimate", "95% credible interval")
-gt(dat) %>%
+dat1 <- data.frame(estimate = sprintf('%.2f', df_all[[1]]),
+                  confint = paste0(sprintf('%.2f', df_all$ci.bay[[1]]), ", ", sprintf('%.2f', df_all$ci.bay[[2]])),
+                  Group = "All studies")
+
+dat2 <- data.frame(estimate = sprintf('%.2f', df_low_rob[[1]]),
+                  confint = paste0(sprintf('%.2f', df_low_rob$ci.bay[[1]]), ", ", sprintf('%.2f', df_low_rob$ci.bay[[2]])),
+                  Group = "Excluding studies at high risk of bias")
+dat <- rbind(dat1, dat2)
+
+colnames(dat) <- c("Estimate", "95% credible interval", "Group")
+
+dat %>%
+  gt(groupname_col = "Group") %>%
     tab_style(
     style = list(
       cell_fill(color = "white"),
       cell_text(weight = "bold")
       ),
-    locations = cells_column_labels())
+    locations = cells_column_labels()) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "grey"),
+      cell_text(weight = "bold")
+      ),
+    locations = cells_row_groups())
+
 ```
 
 ## Bayesian model averaging
 
 Bayesian model averaging is based on one central premise: a myriad of arguments can be made for or against using a myriad of possible Bayesian models; rather than choosing one, why not average them all?
 
-The RoBMA packages generates three families of models across 12 models, and averages their performance. For a description see [this link](https://psyarxiv.com/u4cns?ref=hormones-brain-and-behavior). The output is an **inclusion Bayes factor**. This answers the question: Are the observed data more probable under models with a particular effect, than they are under models without that particular effect? Inclusion bayes factors \>3 indicate 'substantial' evidence against the null, while inclusion bayes factors \<1/3 indicate 'substantial' evidence for the null.
+As [Bartos et al.](https://onlinelibrary.wiley.com/doi/full/10.1002/jrsm.1594) put it: 
 
-We can use Bayesian model averaging for the whole emta-analysis, if we wanted to. But here we're specifically interested in publication bias. The benefit provided by the model averaging approach is that we are provided with an inclusion Bayes factor for publication bias. A high inclusion BF for publication bias would suggest that models accounting for publication bias are more consistent with the observed data. We are also provided with an estimate that accounts for publication bias. 
+> "In practice, researchers seldom have knowledge about the data-generating process nor do they have sufficient information to choose with confidence among the wide variety of proposed methods that aim to adjust for publication bias. Furthermore, this wide range of proposed methods often leads to contradictory conclusions. The combination of uncertainty about the data-generating process and the presence of conflicting conclusions can create a “breeding ground” for confirmation bias31: researchers may unintentionally select those methods that support the desired outcome. This freedom to choose can greatly inflate the rate of false positives, which can be a serious problem for conventional meta-analysis methods."
 
-Publication bias models include selection models and PET-PEESE models. The publication bias adjusment prior described in Bartoš (2021). "Robust Bayesian metaanalysis: Model-averaging across complementary publication bias adjustment methods."
+The RoBMA packages generates three families of models across 12 models (interfacing with `JAGS` through `rjags`), and averages their performance. A total of 32 of these models include publication bias and 4 do not. For a description see [this link](https://psyarxiv.com/u4cns?ref=hormones-brain-and-behavior). The output includes an **inclusion Bayes factor**. The Bayes factor is the ratio of two marginal likelihoods (i.e., two probabilities of data given certain models). We will produce Bayes factors for the mean effect, heterogeneity, and publication bias. 
+
+The "inclusion" part of "inclusion Bayes factor" refers to the fact we are comparing the alternative hypothesis *relative* to the null hypothesis. Hence our notation for the bayes factor is $BF_{10}$ rather than $BF_{01}$, which is another kind of Bayes factor that compares the null hypothesis *relative* to the alternative hypothesis. So, for the mean effect, our null model is $H_0: {\mu} = 0$ and alterative model is $H_1: {\mu} ≠ 0$. Then, the inclusion Bayes factor is:
+
+$$
+BF_{10} = \frac{p(data | H_1)}{p(data | H_0)}
+$$
+Bayes factors answers the question: Are the observed data more probable under models with a particular effect, than they are under models without that particular effect? Inclusion Bayes factors \>3 indicate 'substantial' evidence against the null, while inclusion Bayes factors \<1/3 indicate 'substantial' evidence for the null.
+
+We can use Bayesian model averaging for the whole meta-analysis, if we wanted to. But here we're specifically interested in publication bias. The benefit provided by the model averaging approach is that we are provided with an inclusion Bayes factor for publication bias. A high inclusion BF for publication bias would suggest that models accounting for publication bias are more consistent with the observed data. We are also provided with an estimate that accounts for publication bias. 
+
+Publication bias models include selection models and PET-PEESE models as methods of publication bias assessment. The publication bias adjusment prior is described in [Bartoš (2021).](https://onlinelibrary.wiley.com/doi/full/10.1002/jrsm.1594)
+
+@tbl-robma shows the results.
 
 ### Summary
 
-```{r pub_bias_model_averaging, fig.height=12, fig.width=9}
+```{r}
+#| label: tbl-robma
+#| tbl-cap: |
+#|    Results of the model-averaging approach to meta-analysis, 
+#|    with results for models including publication bias and excluding publication bias.
+
 library(RoBMA)
 library(rjags)
 
@@ -4621,47 +5254,93 @@ robma_no_bias <- RoBMA(logOR = IVdat_del$yi, v = IVdat_del$vi,
                                             truncation = list(lower = 0, upper = Inf)),
                prior_scale = "logOR",
                effect_direction = "negative", priors_bias = NULL)
-cat("Models including those accounting for publication bias:\n\n")
-summary(robma, conditional = TRUE)
-cat("Models excluding those accounting for publication bias:\n\n")
-summary(robma_no_bias, conditional = TRUE)
+
+df_all <- summary(robma)$components %>%
+  data.frame() %>%
+  mutate(parameter = c("Effect", "Heterogeneity", "Publication bias"),
+         Group = "Models accounting for publication bias")
+
+df_low_rob <- summary(robma_no_bias)$components %>%
+  data.frame() %>%
+  mutate(parameter = c("Effect", "Heterogeneity", "Publication bias"),
+         Group = "Models not accounting for publication bias")
+
+rbind(df_all, df_low_rob) %>%
+  mutate(across(prior_prob:inclusion_BF, ~sprintf("%.2f", .))) %>%
+  rename("Number of models" = models,
+         "Prior probability" = prior_prob,
+         "Posterior probability" = post_prob,
+         "Inclusion Bayes factor" = inclusion_BF) %>%
+  gt(rowname_col = "parameter", groupname_col = "Group") %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "grey"),
+      cell_text(weight = "bold")
+      ),
+    locations = cells_row_groups()) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "white"),
+      cell_text(weight = "bold")
+      ),
+    locations = cells_column_labels())
 
 ```
 
 ### Plots
 
-```{r robma_plots, fig.height = 4, fig.width=10}
+Now let's plot the posterior distributions for the mean effect to visualise the effect of publication bias. In @fig-robma-plots below, (A) shows the distribution of the model-averaged estimate with models including publication bias, and (B) is the average distribution of models that do not include publication bias. 
+
+Our model-averaged estimates in these plots use models that assume the absence of an effect (other options includes models that assume the presence of an effect).
+
+The arrows demonstrate the probability of a spike at $log(OR) = 0$ (no effect).
+
+Evidently, including publication bias models significantly changes the results. 
+
+```{r}
+#| label: fig-robma-plots
+#| fig.height: 4
+#| fig.width: 10
+
 # Set up the plots with a 1x2 grid
 par(mfrow = c(1, 2))
 
 # Plot the first graph with title "A" on the left side
-plot(robma, parameter = "mu", prior = TRUE, conditional = TRUE, xlim = c(-1, 1.5))
-mtext("A", side = 3, line = 1, adj = 0, cex = 1.5, font = 2)
-text(-0.9, 1.25, "Conditional model-averaged \nmean effect including \nmodels accounting \nfor publication bias", 
-     pos = 4, cex = 0.75)
-arrows(x0 = 0, y0 = 1.25, x1 = 0.2, y1 = 1.25, length = 0.1)
-text(-0.8, 0.8, "Prior for mean \neffect (N(0,0.82))", 
-     pos = 4, cex = 0.75)
-arrows(x0 = -0.5, y0 = 0.75, x1 = -0.5, y1 = 0.5, length = 0.1)
+plot1 <- plot(robma, parameter = "mu", prior = TRUE, xlim = c(-1, 1.5), plot_type = "ggplot")
+
+plot1 <- plot1 +
+  annotate("text", x = 1.1, y = 0.7, label = "Model-averaged \nmean effect including \nmodels accounting \nfor publication bias") +
+  labs(x="Log odds ratio", title = "A") +  
+  annotate("text", x = -0.5, y = 0.45, label = "Mean effect\nprior (N(0,0.82))", fontface = "bold") +
+  geom_segment(aes(x = -0.5, y = 0.35, xend = -0.5, yend = 0.2),
+             color = "black",
+             size = 0.7,
+             arrow = arrow(length = unit(0.04, "npc"), type = "closed")) +
+  theme_light()
 
 # Plot the second graph with title "B" on the left side
-plot(robma_no_bias, parameter = "mu", prior = TRUE, conditional = TRUE, xlim = c(-1, 1.5))
-mtext("B", side = 3, line = 1, adj = 0, cex = 1.5, font = 2)
-text(0.25, 2, "Conditional model-averaged \nmean effect excluding \nmodels accounting \nfor publication bias", 
-     pos = 4, cex = 0.75)
-arrows(x0 = 0.2, y0 = 2, x1 = -0.2, y1 = 2, length = 0.1)
-text(0, 1, "Prior for mean \neffect (N(0,0.82))", 
-     pos = 4, cex = 0.75)
-arrows(x0 = 0.25, y0 = 0.75, x1 = 0.25, y1 = 0.2, length = 0.1)
+plot2 <- plot(robma_no_bias, parameter = "mu", prior = TRUE, xlim = c(-1, 1.5), plot_type = "ggplot")
+
+plot2 <- plot2 +
+  annotate("text", x = 0.55, y = 2, label = "Model-averaged \nmean effect excluding \nmodels accounting \nfor publication bias") +
+  labs(x="Log odds ratio", title = "B") +  
+  annotate("text", x = 1, y = 1, label = "Mean effect\nprior (N(0,0.82))", fontface = "bold") +
+  geom_segment(aes(x = 1, y = 0.65, xend = 1, yend = 0.2),
+             color = "black",
+             size = 0.7,
+             arrow = arrow(length = unit(0.04, "npc"), type = "closed")) +
+  theme_light()
 
 # Reset to the default 1x1 grid
-par(mfrow = c(1, 1))
+grid.arrange(plot1, plot2, ncol = 2)
 
 ```
 
 ## Frequentist methods for publication bias
 
 ### Funnel plot
+
+Below is the funnel plot. As you can see, there is clear asymmetry to the plot, with studies missing from the right hand side (area of no effect or harm).
 
 ```{r freq_funnel, fig.height=5, fig.width=5}
 res_REML <- rma(yi, vi, data=IVdat_del_bayesmeta, 
@@ -4675,40 +5354,86 @@ funnel(res_REML, yaxis="sei",
        label=FALSE, offset=0.4)
 ```
 
-### Hemni & Copas method
+### Henmi & Copas method
 
--   Random effects model with fixed effect weights
-    -   This is essentially just another way to try and account for publication bias
--   Aims to combat the issue that smaller studies are give relatively larger weight in the RE model with heterogeneity
+Random effects meta-analysis is not *always* better than fixed effect meta-analysis, even when you are certain that your population of trials do not meet the (almost invariably un-meet-able) requirement for a fixed effect meta-analysis, which is that the variability of population effects in your trials should be 0. Once instance where random effects falls down is in the allocation of weight to included trials in the presence of heterogeneity in observed effect sizes.
 
-```{r hemni_copas}
+For a random effects inverse variance meta-analysis, each study is weighed according to its variance and the calculated heterogeneity:
+
+$$ 
+w_i = \frac{1}{v_i + \tau}
+$$ {#eq-weights-re}
+
+For a fixed effect analysis, $\tau$ is not estimated, and the weight of studies is given by:
+
+$$
+w_i = 1/v_i
+$$ {#eq-weights-fe}
+
+Indeed, this is partly why the random effects inverse variance meta-analysis converges to a fixed effect analysis when $\tau$ is estimated to be 0.
+
+However, in the presence of significant heterogeneity in random effects meta-analysis, @eq-weights-re results in the relative downweighting of larger studies and upweighting of smaller studies. This means smaller studies have a greater influence on the pooled outcome, which exacerbates any impact of publication bias.
+
+Henmi and Copas proposed that studies in a random effects meta-analysis be weighted according to fixed effect @eq-weights-fe. This means that $\tau$ is calculated and incorporated into the results but is not used to weight the studies. This approach was later popularised by Doi et al. as the 'Inverse Variance Heterogeneity Model'. 
+
+@tbl-henmi-copas shows the results.
+
+```{r}
+#| label: tbl-henmi-copas
+#| tbl-cap: |
+#|    Results of the Henmi and Copas method for random effects meta-analysis, where studies are weighed according using fixed effect weighting.
+
 res_REML_hc <- rma(yi, vi, data=IVdat_del, weights = 1/vi,
                         test="knha", method = "REML")
-predict(res_REML_hc, transf=exp)
+df <- data.frame(predict(res_REML_hc, transf=exp))
+
+df <- df %>%
+  mutate(across(where(is.numeric), ~sprintf("%.2f", .)),
+         confint = paste0(ci.lb, ", ", ci.ub),
+         predint = paste0(pi.lb, ", ", pi.ub)) %>%
+  dplyr::select(pred, confint, predint)
+
+colnames(df) <- c("Odds ratio", "95% confidence interval", "95% prediction interval")
+ 
+df %>%
+  gt()  %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "white"),
+      cell_text(weight = "bold")
+      ),
+    locations = cells_column_labels())
 ```
 
 ### Selection models
 
--   See the [bookdown selection model page](https://bookdown.org/MathiasHarrer/Doing_Meta_Analysis_in_R/pub-bias.html#selection-models)
--   Also see the [metafor selection model page](https://wviechtb.github.io/metafor/reference/selmodel.html)
--   We have used the step function to create the so-called "Three-parameter selection model"
-    -   The parameters are mu (mean effect size), tau\^2 (heterogeneity variance), and d2 (likelihood of selection of p-values)
--   We can't really do any more complex models because we only have 21 studies
--   Also see [Dan Quintana's blog](https://www.dsquintana.blog/how-to-perform-a-bayesian-meta-analysis-in-r/)
+Selection models are another form of publication bias assessment. These revolve around testing the hypothesis that there is a systematic 'selection' of low p-values relative to higher p-values. They also provide revised effect sizes that take into account the hypothesized selection model.  
+
+We have used the step function to create the so-called "three-parameter selection model". The parameters are $\mu$ (mean effect size), ${\tau}^2$ (heterogeneity variance), and $d^2$ (likelihood of selection of p-values). We can't really do any more complex models because we only have 16 studies.
+
+See the [bookdown selection model page](https://bookdown.org/MathiasHarrer/Doing_Meta_Analysis_in_R/pub-bias.html#selection-models) and the [metafor selection model page](https://wviechtb.github.io/metafor/reference/selmodel.html), and [Dan Quintana's blog](https://www.dsquintana.blog/how-to-perform-a-bayesian-meta-analysis-in-r/) for more details.
 
 ```{r selection_models}
-selmodel(res_REML,
+df <- selmodel(res_REML,
          type = "stepfun",
          steps = c(0.025,1),
          alternative = "less")
+
+df
+
 ```
 
 ### Trim and fill
 
+Now for trim and fill analysis. This is another method of publication bias assessment that has been around a lot longer than the other examples.
+
+Trim and fill analysis uses the funnel plot to hypothesise the existence of 'missing' studies in the plot - i.e., studies that were completed but then put in the 'file draw' and not published because they didn't show a significant result. It also provides a revised effect size accounting for these missing studies.
+
 #### Funnel
 
+First let's look at the funnel plot to see how many of these theorised studies there are and where they may sit.
+
 ```{r trim_and_fill_funnel, fig.height=5, fig.width=5}
-trimfill(res_REML)
 taf <- trimfill(res_REML)
  
 ### draw funnel plot with missing studies filled in
@@ -4717,6 +5442,27 @@ funnel(taf, legend=TRUE)
 
 #### Revised effect size
 
+Now let's print the revised effect size from the trim and fill analysis. 
+
 ```{r trim_and_fill_effect}
-predict(taf, transf=exp)
+df <- data.frame(predict(taf, transf=exp))
+
+df <- df %>%
+  mutate(across(where(is.numeric), ~sprintf("%.2f", .)),
+         confint = paste0(ci.lb, ", ", ci.ub),
+         predint = paste0(pi.lb, ", ", pi.ub)) %>%
+  dplyr::select(pred, confint, predint)
+
+colnames(df) <- c("Odds ratio", "95% confidence interval", "95% prediction interval")
+ 
+df %>%
+  gt()  %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "white"),
+      cell_text(weight = "bold")
+      ),
+    locations = cells_column_labels())
 ```
+
+
