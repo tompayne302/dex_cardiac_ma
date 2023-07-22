@@ -181,12 +181,11 @@ IVdat_del <- IVdat_del_bayesmeta %>%
          author1 = paste(author, year, sep = " ")) %>%
   arrange(year)
 
+IVdat_del_low_rob <- IVdat_del %>%
+  filter(!overall == "x") 
 
-## Conduct the primary analysis 
-### Proper, uninformative/vague prior for mu: N(0,16))
-### Proper, uninformative/vague prior for tau: HN(0,16)
-## The above vague priors are based on those given in Albuquerque et al. (JAMA 2022)
 
+## Conduct the primary analysis (binary outcomes)
 priors_primary <- brms::prior(normal(0,0.82), class = b, coef = "Intercept") +
             brms::prior(cauchy(0,0.5), class = sd)
 
@@ -226,6 +225,7 @@ m.brm_age_cont <- update(m.brm, formula. = ~ . + mean_age, newdata = IVdat_del, 
 m.brm_dose_timing <- update(m.brm, formula. = ~ . - Intercept + dex_dose_timing, newdata = IVdat_del, prior = priors_metareg)
 
 # Secondary outcomes
+## First, binary secondary outcomes
 ## Mortality outcome
 dat_mortality_na_removed <- dat[!is.na(dat$dex_mortality)&!is.na(dat$control_mortality),]
 IVdat_mortality <- escalc(measure="OR", ai=dex_mortality, bi=dex_no_mortality, 
@@ -290,6 +290,17 @@ m.brm_arrhythmia_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newda
 IVdat_arrhythmia_dose <- IVdat_arrhythmia[!is.na(IVdat_arrhythmia$dex_dose),]
 m.brm_arrhythmia_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_arrhythmia_dose, prior = priors_metareg)
 
+## Now for continous secondary outcomes
+## Need to run these continuous outcomes with much more iterations (50,000 vs 4000) because they're not converging.
+
+## See priors for continuous secondary outcomes
+priors_cont <- brms::prior(normal(0,1), class = b, coef = "Intercept") +
+            brms::prior(cauchy(0,0.5), class = sd)
+
+priors_cont_metareg <- brms::prior(normal(0, 1), class = b, coef = "Intercept") +
+            brms::prior(cauchy(0,0.5), class = sd) +
+            brms::prior(normal(0,1), class = b)
+
 ## delirium duration outcome
 dat_del_duration_na_removed <- dat[!is.na(dat$dex_delirium_duration_days_mean)&!is.na(dat$control_delirium_duration_days_mean)
                                    &!is.na(dat$dex_delirium_duration_days_sd)&!is.na(dat$control_delirium_duration_days_sd),]
@@ -301,13 +312,21 @@ IVdat_del_duration <- escalc(measure="MD", m1i=dex_delirium_duration_days_mean, 
             mutate(sei = sqrt(vi),
                    author1 = paste(author, year, sep = " "))
 
-m.brm_del_duration <-  update(m.brm, newdata = IVdat_del_duration)
+  # Run the brms model
+m.brm_del_duration <- brm(yi | se(sei) ~ 0 + Intercept + (1 | author1),
+             data = IVdat_del_duration,
+             prior = priors_cont,
+              iter = 50000,
+              backend = "cmdstanr", 
+              cores = parallel::detectCores(),
+              chains = 4,
+              seed = 123)
 
 IVdat_del_duration_age <- IVdat_del_duration[!is.na(IVdat_del_duration$age_60),]
-m.brm_del_duration_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_del_duration_age, prior = priors_metareg)
+m.brm_del_duration_age <- update(m.brm_del_duration, formula. = ~ . - Intercept + age_60, newdata = IVdat_del_duration_age, prior = priors_cont_metareg)
 
 IVdat_del_duration_dose <- IVdat_del_duration[!is.na(IVdat_del_duration$dex_dose),]
-m.brm_del_duration_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_del_duration_dose, prior = priors_metareg)
+m.brm_del_duration_dose <- update(m.brm_del_duration, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_del_duration_dose, prior = priors_cont_metareg)
 
 ## time to extubation outcome
 dat_extub_time_na_removed <- dat[!is.na(dat$dex_timetoextubation_mean)&!is.na(dat$control_timetoextubation_mean)
@@ -319,13 +338,13 @@ IVdat_extub_time <- escalc(measure="MD", m1i=dex_timetoextubation_mean, sd1i=dex
             mutate(sei = sqrt(vi),
                    author1 = paste(author, year, sep = " "))
 
-m.brm_extub_time <-  update(m.brm, newdata = IVdat_extub_time)
+m.brm_extub_time <-  update(m.brm_del_duration, newdata = IVdat_extub_time)
 
 IVdat_extub_time_age <- IVdat_extub_time[!is.na(IVdat_extub_time$age_60),]
-m.brm_extub_time_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_extub_time_age, prior = priors_metareg)
+m.brm_extub_time_age <- update(m.brm_del_duration, formula. = ~ . - Intercept + age_60, newdata = IVdat_extub_time_age, prior = priors_cont_metareg)
 
 IVdat_extub_time_dose <- IVdat_extub_time[!is.na(IVdat_extub_time$dex_dose),]
-m.brm_extub_time_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_extub_time_dose, prior = priors_metareg)
+m.brm_extub_time_dose <- update(m.brm_del_duration, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_extub_time_dose, prior = priors_cont_metareg)
 
 ## hospital stay outcome
 dat_hosp_stay_na_removed <- dat[!is.na(dat$dex_hospital_days_mean)&!is.na(dat$control_hospital_days_mean)
@@ -337,13 +356,13 @@ IVdat_hosp_stay <- escalc(measure="MD", m1i=dex_hospital_days_mean, sd1i=dex_hos
             mutate(sei = sqrt(vi),
                    author1 = paste(author, year, sep = " "))
 
-m.brm_hosp_stay <-  update(m.brm, newdata = IVdat_hosp_stay)
+m.brm_hosp_stay <-  update(m.brm_del_duration, newdata = IVdat_hosp_stay)
 
 IVdat_hosp_stay_age <- IVdat_hosp_stay[!is.na(IVdat_hosp_stay$age_60),]
-m.brm_hosp_stay_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_hosp_stay_age, prior = priors_metareg)
+m.brm_hosp_stay_age <- update(m.brm_del_duration, formula. = ~ . - Intercept + age_60, newdata = IVdat_hosp_stay_age, prior = priors_cont_metareg)
 
 IVdat_hosp_stay_dose <- IVdat_hosp_stay[!is.na(IVdat_hosp_stay$dex_dose),]
-m.brm_hosp_stay_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_hosp_stay_dose, prior = priors_metareg)
+m.brm_hosp_stay_dose <- update(m.brm_del_duration, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_hosp_stay_dose, prior = priors_cont_metareg)
 
 ## ICU stay outcome
 dat_icu_stay_na_removed <- dat[!is.na(dat$dex_icu_days_mean)&!is.na(dat$control_icu_days_mean)
@@ -355,13 +374,13 @@ IVdat_icu_stay <- escalc(measure="MD", m1i=dex_icu_days_mean, sd1i=dex_icu_days_
             mutate(sei = sqrt(vi),
                    author1 = paste(author, year, sep = " "))
 
-m.brm_icu_stay <-  update(m.brm, newdata = IVdat_icu_stay)
+m.brm_icu_stay <-  update(m.brm_del_duration, newdata = IVdat_icu_stay)
 
 IVdat_icu_stay_age <- IVdat_icu_stay[!is.na(IVdat_icu_stay$age_60),]
-m.brm_icu_stay_age <- update(m.brm, formula. = ~ . - Intercept + age_60, newdata = IVdat_icu_stay_age, prior = priors_metareg)
+m.brm_icu_stay_age <- update(m.brm_del_duration, formula. = ~ . - Intercept + age_60, newdata = IVdat_icu_stay_age, prior = priors_cont_metareg)
 
 IVdat_icu_stay_dose <- IVdat_icu_stay[!is.na(IVdat_icu_stay$dex_dose),]
-m.brm_icu_stay_dose <- update(m.brm, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_icu_stay_dose, prior = priors_metareg)
+m.brm_icu_stay_dose <- update(m.brm_del_duration, formula. = ~ . - Intercept + dex_dose, newdata = IVdat_icu_stay_dose, prior = priors_cont_metareg)
 
 # Excluding high RoB
 m.brm_low_rob <- update(m.brm, newdata = IVdat_del %>% filter(!overall == "x"))
@@ -400,17 +419,176 @@ m.brm_turneretal <- update(m.brm_informative, prior = turner_etal_priors)
 
 ```
 
+# Changes this version
+
+- Added a section for the average treatment effect (ATE) from DECADE in @tbl-ate and @fig-ecdfs-arr.
+- Changed @tbl-arr to calculate risk differences directly from logistic regression using `marginaleffects` (rather than converting using the OR). Results are similar.
+- Changed @tbl-benefit-probs-all and all other NNT tables to report absolute risk reductions rather than NNTs. See [Frank Harrell's issues](https://discourse.datamethods.org/t/problems-with-nnt/195) with the NNT. They have convinced me to stop using it (thanks Ben).
+- Changed @fig-freq-funnel to be a contour-enhanced funnel plot rather than normal funnel plot.
+- All incorrect references to 'publication bias' changed to 'small study effects'. See [this link](https://bookdown.org/MathiasHarrer/Doing_Meta_Analysis_in_R/pub-bias.html) for details.
+- Priors specified and justified for the primary analysis and metaregression.
+- I had made an error in the fully Bayesian sequential analysis in @tbl-fully-bayes-sequential. I was mistakenly putting our prior for $\tau$ on $\tau^2$ rather than $\tau$. I have changed this and added a longer explanation of how I created the new model in `rjags`. It now suggests stopping after 15 studies (including studies at high RoB), which is more congruent with the semi-Bayesian analysis. 
+- Added a summary section (at the top) for our Bayesian reanalysis of DECADE.
+- Added plots of our priors in @fig-prior-plot-effect and @fig-prior-plot-hetero. 
+
+
 # Introduction
 
-At long last the data analysis is here! Tess, before diving into this I would read [Kruschke and Liddell](https://link.springer.com/article/10.3758/s13423-016-1221-4) if you're not across the whole frequentist vs. Bayesian debate. Most of what is below will not make sense in the absence of an understanding of the difference between frequentist and Bayesian approaches to data analysis.
+Before diving into this I would read [Kruschke and Liddell](https://link.springer.com/article/10.3758/s13423-016-1221-4) if you're not across the whole frequentist vs. Bayesian debate.
 
 # Overall forest plot
 
 Below in @fig-forest-all-studies and @fig-forest-low-rob I show the forest plot of all studies, and excluding studies at high risk of bias, respectively.
 
-The purple lines show the assumed distribution of with-in study effects; that is, in meta-analysis we assume that each study's observed effect $\hat{\theta}$ is an estimate of the true effect in that trial population ${\theta}$, and the uncertainty in this estimate is modeled with a normal distribution with mean ${\theta}$ and standard deviation ${\sigma}$: $N({\theta}, {\sigma})$.
+For meta-analysis, we will employ a Bayesian normal-normal hierarchical model (NNHM). It is a 'normal-normal' model because we assume on the first level that the within-study effects of each trial are normally distributed, and on the second level that the effects across different populations are normally distributed.
 
-The blue curves show the posterior shrinkage estimates of each study; that is, each study's effect is 'shrunk' towards the mean when viewed in light of the other data. [Kruschke and Liddell](https://link.springer.com/article/10.3758/s13423-016-1221-4) explain this best:
+Firstly - let's discuss the within-study normality assumption. In the NNHM we assume that each study's observed effect $\hat{\theta}$ is an estimate of the true effect in that trial population ${\theta}$, and the uncertainty in this estimate is modeled with a normal distribution with mean ${\theta}$ and standard deviation ${\sigma}$:
+
+$$
+\hat{\theta} \sim Normal({\theta}, {\sigma}^2)
+$$ In the above case, the standard deviation $\sigma$ is the trial's standard error. As such, estimates from studies with smaller standard errors will have narrower normal distributions and deviate less from the estimated mean effect $\theta$. The purple lines in the forest plot below show the assumed distribution of within study effects described above.
+
+Secondly - let's discuss the between-population normality assumption. Here, we assume that each study's estimate $\theta$ is an approximation of the overall mean effect across different populations, $\mu$. We assume that this normal distribution with mean $\mu$ has a standard deviation $\tau$. So, the second level of our NNHM takes the form:
+
+$$
+\theta \sim Normal(\mu, \tau^2)
+$$
+
+In a Bayesian analysis, we know $\theta$ using our estimate $\hat{\theta}$, and we assume that $\sigma$ is known (for which use the study's standard error). We need to put priors on both of these $\mu$ and $\tau$ parameters. For our primary analysis, I have used weakly informative priors. That is, they are meant to impart some information about prior belief of the plausible range of true values, without overwhelming the data.
+
+For $\mu$, the prior is a normal distribution with mean 0 and standard deviation 0.82 (on the log odds ratio scale):
+
+$$
+\mu \sim Normal(0, 0.82)
+$$
+
+This is a weakly informative prior because it makes values closer to null (logOR = 0) more likely but still leaves room for higher and lower values. With this prior, 95% of the density lies between an odds ratio of 0.2 and 5. This is consistent with logic, and prior evidence: we consider it unlikely that dexmedetomidine is a silver bullet for delirium (80% or greater odds reduction) or a significant driver of delirium (500% or greater odds increase).
+
+Below in @fig-prior-plot-effect, I graph the prior on both the logOR (A) and OR scale (B), to visualise the prior distribution. As you can see, for the distribution to be normal on the odds ratio scale, we need to take the logarithm of the x-axis (C).
+
+```{r}
+#| label: fig-prior-plot-effect
+#| fig-width: 15
+#| fig-height: 9
+#| fig-cap: |
+#|   Plot of the prior for the mean effect, in A) log odds ratio form with continuous x-axis, B) odds ratio form with continuous x-axis, and C) odds ratio form with log10 x-axis.
+
+mu_prior_plot_log = data.frame(prior = distributional::dist_normal(mean = 0, sd = 0.82))
+mu_prior_plot_exp = data.frame(prior = exp(distributional::dist_normal(mean = 0, sd = 0.82)))
+
+mu_log <- ggplot(data = data.frame(x = c(-10, 10)), aes(x)) +
+  stat_halfeye(aes(xdist = prior), data = mu_prior_plot_log, fill = "lightblue", color = "black",  inherit.aes = FALSE) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  scale_x_continuous(breaks = c(-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2), expand = c(0, 0)) +    
+  coord_cartesian(xlim=c(-2, 2)) +
+  annotate("text", x = -1, y =0.8, label = "Favours\ndexmedetomidine") +
+  annotate("text", x = 1, y = 0.8,  label = "Favours\ncontrol") +
+  theme_light() +
+  theme(axis.text.y = element_blank()) +
+  labs(x="Log odds ratio (linear scale)", title = "A") +
+  ylab(NULL) +
+  guides(alpha = "none")
+
+mu <- ggplot(data = data.frame(x = c(-10, 10)), aes(x)) +
+  stat_halfeye(aes(xdist = prior), data = mu_prior_plot_exp, fill = "lightblue", color = "black",  inherit.aes = FALSE) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  scale_x_continuous(breaks = c(0, 1, 2, 3, 4, 5, 6), expand = c(0, 0)) +           
+  coord_cartesian(xlim=c(0, 6)) +
+  annotate("text", x = 0.5, y = 0.9, label = "Favours\ndexmedetomidine") +
+  annotate("text", x = 1.8, y = 0.9,  label = "Favours\ncontrol") +
+  theme_light() +
+  theme(axis.text.y = element_blank()) +
+  labs(x="Odds ratio (linear scale)", title = "B") +
+  ylab(NULL) +
+  guides(alpha = "none")
+
+mu_exp <- ggplot(data = data.frame(x = c(-10, 10)), aes(x)) +
+  stat_halfeye(aes(xdist = prior), data = mu_prior_plot_exp, fill = "lightblue", color = "black",  inherit.aes = FALSE) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  scale_x_log10(breaks = c(0.1, 0.25, 0.5, 1, 2, 4, 7), expand = c(0, 0)) +           
+  coord_cartesian(xlim=c(0.1, 7)) +
+  annotate("text", x = 0.2, y = 0.8, label = "Favours\ndexmedetomidine") +
+  annotate("text", x = 5, y = 0.8,  label = "Favours\ncontrol") +
+  theme_light() +
+  theme(axis.text.y = element_blank()) +
+  labs(x="Odds ratio (log scale)", title = "C") +
+  ylab(NULL) +
+  guides(alpha = "none")
+
+grid.arrange(mu_log, mu, mu_exp, ncol = 2)
+
+```
+
+For $\tau$, the prior is a half-Cauchy distribution with scale = 0.5:
+
+$$
+\tau \sim HalfCauchy(0.5)
+$$
+
+We use a half-Cauchy distribution because this is a heavy tailed distribution that only takes positive values (as we only look at 'half'), which is appropriate for a standard deviation parameter. The 'scale' in a half-Cauchy distribution can be thought of as similar to a standard deviation, as it relates to the gradient of the slope (this isn't technically true because the Cauchy distribution has undefined mean and variance, but is okay for purposes of understanding).
+
+We can show our $\tau \sim HalfCauchy(0.5)$ prior grapically. Somewhat arbitrarily, traditional cutoffs for heterogeneity are: Low ($\tau < 0.1$), reasonable ($0.1 < \tau < 0.5$), fairly high ($0.5 < \tau < 1.0$), and fairly extreme ($\tau > 1.0$). We can present the prior probabilities of each level of heterogeneity graphically, as shown in @fig-prior-plot-hetero below.
+
+As you'll notice, the distribution is heavy-tailed, and as such we leave a high probability for significant heterogeneity. This is consistent with our belief that there is likely quite significant heterogeneity in the response to dexmedetomidine among different populations.
+
+```{r}
+#| label: fig-prior-plot-hetero
+#| fig-width: 11
+#| fig-height: 6
+#| fig-cap: |
+#|   Plot of the prior for heterogeneity parameter tau, with probabilities of each level of heterogeneity shown.
+
+tau_prior_plot = data.frame(prior = distributional::dist_cauchy(location = 0, scale = 0.5))
+
+tau <- distributional::dist_cauchy(location = 0, scale = 0.5)
+
+data <- rhalfcauchy(n = 1000, scale = 0.5)
+
+ggplot(data = data.frame(x = c(-2, 2)), aes(x)) +
+  stat_function(
+  fun = dhalfcauchy,
+  args = list(scale = 0.5),
+  color = "blue",
+  size = 1) +
+  scale_x_continuous(breaks = c(0, 0.1, 0.5, 1, 1.5, 2), expand = c(0, 0)) +    
+  coord_cartesian(xlim=c(0, 2)) +
+  geom_vline(xintercept = 0.1, linetype = "dashed") +
+  geom_vline(xintercept = 0.5, linetype = "dashed") +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  annotate("text", x = 0.05, y = 0.98, label = "Low", fontface = "bold") +
+  annotate("text", x = 0.3, y = 0.98, label = "Reasonable", fontface = "bold") +
+  annotate("text", x = 0.75, y = 0.98, label = "Fairly high", fontface = "bold") +
+  annotate("text", x = 1.5, y = 0.98, label = "Fairly extreme", fontface = "bold") +
+  annotate("text", x = 0.05, y = 0.2, label = paste0(sprintf('%.1f', phalfcauchy(0.1, scale = 0.5)*100), "%"), 
+           fontface = "bold") +
+  annotate("text", x = 0.3, y = 0.2, label = paste0(sprintf('%.1f', (phalfcauchy(0.5, scale = 0.5)*100 - phalfcauchy(0.1, scale = 0.5)*100)), "%"), 
+           fontface = "bold") +
+  annotate("text", x = 0.75, y = 0.2, label = paste0(sprintf('%.1f', (phalfcauchy(1, scale = 0.5)*100 - phalfcauchy(0.5, scale = 0.5)*100)), "%"), 
+           fontface = "bold") +
+  annotate("text", x = 1.5, y = 0.1, label = paste0(sprintf('%.1f', (1 - phalfcauchy(1, scale = 0.5))*100), "%"),
+           fontface = "bold") +
+  theme_light() +
+  theme(axis.text.y = element_blank()) +
+  labs(x="Log odds ratio") +
+  ylab(NULL) +
+  guides(alpha = "none")
+
+
+```
+
+Finally, we will conduct metaregression further below, with more details provided. Nonetheless I will show the priors for the regression coefficient here, for completeness. For the regression coefficient we will use the same priors as we use for the intercept above: $\beta \sim Normal(0, 0.82)$
+
+Putting all these together, we can show the following formulas for our NNHM:
+
+$$\hat{\theta} \sim Normal(\theta, \sigma^2)$$
+$$\theta \sim Normal(\mu, \tau^2)$$
+$$\mu \sim Normal(0,0.82)$$
+$$\tau \sim HalfCauchy(0.5)$$
+$$\beta \sim Normal(0,0.82)$$
+
+Now for the forest plot.
+
+Firstly, the blue curves show the posterior shrinkage estimates of each study; that is, each study's effect is 'shrunk' towards the mean when viewed in light of the other data. [Kruschke and Liddell](https://link.springer.com/article/10.3758/s13423-016-1221-4) explain this best:
 
 > "Hierarchical models are especially useful because the low-level and high-level parameters are estimated simultaneously and are mutually constraining. When data from many low-level units inform the high-level distribution, the high-level distribution constrains the low-level parameters to be mutually consistent. This causes the more extreme low-level cases to be"shrunken" toward the mode(s) of the group. Shrinkage helps prevent false alarms caused by random conspiracies of rogue outlying data. Essentially, the data from the other individuals are acting as simultaneous prior information to rein in estimates of outlying individuals."
 
@@ -901,7 +1079,7 @@ Now let's look at the posteriors a bit more closely. We are essentially zooming 
 
 For 𝛕, I present dotted lines to represent traditional cutoffs for heterogeneity: Low (𝛕 \< 0.1), reasonable (0.1 \< 𝛕 \< 0.5), fairly high (0.5 \< 𝛕 \< 1.0), and farily extreme (𝛕 \> 1.0).
 
-I also present our primary priors for 𝝁 and 𝛕, $N(0, 0.82)$ and $Cauchy(0, 0.5)$, respectively.
+I also present our primary priors for 𝝁 and 𝛕, $N(0, 0.82)$ and $HalfCauchy(0.5)$, respectively.
 
 @fig-posteriors-all shows the curves, with tabs for all studies and excluding studies at high risk of bias.
 
@@ -1051,9 +1229,9 @@ grid.arrange(mu, tau, ncol = 1)
 
 # Probability of benefit calculations
 
-Now to calculate the probability of dexmedetomidine having certain effect sizes. In order to do this we need to transform the odds ratio into an interpretable effect size: the number needed to treat (NNT).
+Now to calculate the probability of dexmedetomidine having certain effect sizes. In order to do this we need to transform the odds ratio into an interpretable effect size: the absolute risk reduction (ARR), or risk difference.
 
-To go from the OR ➜ NTT, you must first use the OR to calculate the risk in the treatment group (R~t~), as shown in @eq-1.
+To go from the OR ➜ ARR, you must first use the OR to calculate the risk in the treatment group (R~t~), as shown in @eq-1.
 
 $$
 R_t = \frac{R_c \times OR}{R_c(OR - 1) + 1}
@@ -1067,13 +1245,7 @@ $$
 R_d = R_t - R_c
 $$ {#eq-2}
 
-We are then able to calculate the NNT in @eq-3:
-
-$$
-NNT = \frac{100}{R_d}
-$$ {#eq-3}
-
-The typical workflow is all well and good but we can't use it for our purposes. What we need is to calculate the required odds ratio for a given NNT and then estimate the probability of our data suggesting the odds ratio is greater or lower than that value.
+The typical workflow is all well and good but we can't use it for our purposes. What we need is to calculate the required odds ratio for a given ARR and then estimate the probability of our data suggesting the odds ratio is greater or lower than that value.
 
 So we rearrange @eq-1 to obtain @eq-4:
 
@@ -1084,7 +1256,7 @@ $$ {#eq-4}
 We are able to calculate R~t~ in the equation above using @eq-5:
 
 $$
-R_t = R_c - \frac{1}{NNT}
+R_t = R_c - R_d
 $$ {#eq-5}
 
 These calculations are shown below in @tbl-benefit-probs-all and @tbl-benefit-probs-low_rob, with tabs for all studies and excluding studies at high risk of bias.
@@ -1094,124 +1266,139 @@ These calculations are shown below in @tbl-benefit-probs-all and @tbl-benefit-pr
 
 ```{r}
 #| label: tbl-benefit-probs-all
-#| tbl-cap: Probability of various NNTs, including all studies
+#| tbl-cap: Probability of various ARRs, including all studies
 
 Rc_overall <- median(IVdat_del$control_del_rate)
 
-nnt_50_Rt_overall <- Rc_overall - (100/50)/100
-nnt_50_or_overall <- (nnt_50_Rt_overall*(Rc_overall - 1))/(Rc_overall*(nnt_50_Rt_overall - 1))
+arr_2_Rt_overall <- Rc_overall - 0.02
+arr_2_or_overall <- (arr_2_Rt_overall*(Rc_overall - 1))/(Rc_overall*(arr_2_Rt_overall - 1))
 
-nnt_25_Rt_overall <- Rc_overall - (100/25)/100
-nnt_25_or_overall <- (nnt_25_Rt_overall*(Rc_overall - 1))/(Rc_overall*(nnt_25_Rt_overall - 1))
+arr_4_Rt_overall <- Rc_overall - 0.04
+arr_4_or_overall <- (arr_4_Rt_overall*(Rc_overall - 1))/(Rc_overall*(arr_4_Rt_overall - 1))
 
-nnt_10_Rt_overall <- Rc_overall - (100/10)/100
-nnt_10_or_overall <- (nnt_10_Rt_overall*(Rc_overall - 1))/(Rc_overall*(nnt_10_Rt_overall - 1))
+arr_6_Rt_overall <- Rc_overall - 0.06
+arr_6_or_overall <- (arr_6_Rt_overall*(Rc_overall - 1))/(Rc_overall*(arr_6_Rt_overall - 1))
+
+arr_8_Rt_overall <- Rc_overall - 0.08
+arr_8_or_overall <- (arr_8_Rt_overall*(Rc_overall - 1))/(Rc_overall*(arr_8_Rt_overall - 1))
 
 probs_overall = 
   m.brm |> 
   tidy_draws() |> 
   summarise(any_benefit_overall = 100*mean(b_Intercept < log(1)),
-            rrr_nnt_50_overall = 100*mean(b_Intercept < log(nnt_50_or_overall)),
-            rrr_nnt_25_overall = 100*mean(b_Intercept < log(nnt_25_or_overall)),
-            rrr_nnt_10_overall = 100*mean(b_Intercept < log(nnt_10_or_overall)),
-            )
+            rrr_arr_50_overall = 100*mean(b_Intercept < log(arr_2_or_overall)),
+            rrr_arr_4_overall = 100*mean(b_Intercept < log(arr_4_or_overall)),
+            rrr_arr_6_overall = 100*mean(b_Intercept < log(arr_6_or_overall)),
+            rrr_arr_8_overall = 100*mean(b_Intercept < log(arr_8_or_overall)))
 
 # First, age below 60
 Rc_age_below_60 <- median(IVdat_del[IVdat_del$age_60=="No" &
                                                !is.na(IVdat_del$age_60),]$control_del_rate)
-nnt_50_Rt_age_below_60 <- Rc_age_below_60 - (100/50)/100
-nnt_50_or_age_below_60 <- nnt_50_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(nnt_50_Rt_age_below_60 - 1)
+arr_2_Rt_age_below_60 <- Rc_age_below_60 - 0.02
+arr_2_or_age_below_60 <- arr_2_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(arr_2_Rt_age_below_60 - 1)
 
-nnt_25_Rt_age_below_60 <- Rc_age_below_60 - (100/25)/100
-nnt_25_or_age_below_60 <- nnt_25_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(nnt_25_Rt_age_below_60 - 1)
+arr_4_Rt_age_below_60 <- Rc_age_below_60 - 0.04
+arr_4_or_age_below_60 <- arr_4_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(arr_4_Rt_age_below_60 - 1)
 
-nnt_10_Rt_age_below_60 <- Rc_age_below_60 - (100/10)/100
-nnt_10_or_age_below_60 <- nnt_10_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(nnt_10_Rt_age_below_60 - 1)
+arr_6_Rt_age_below_60 <- Rc_age_below_60 - 0.06
+arr_6_or_age_below_60 <- arr_6_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(arr_6_Rt_age_below_60 - 1)
+
+arr_8_Rt_age_below_60 <- Rc_age_below_60 - 0.08
+arr_8_or_age_below_60 <- arr_8_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(arr_8_Rt_age_below_60 - 1)
 
 probs_age_below_60 = 
   spread_draws(m.brm_age, b_age_60No) |> 
   summarise(any_benefit_age_below_60 = 100*mean(b_age_60No < log(1)),
-            rrr_nnt_50_age_below_60 = 100*mean(b_age_60No < log(nnt_50_or_age_below_60)),
-            rrr_nnt_25_age_below_60 = 100*mean(b_age_60No < log(nnt_25_or_age_below_60)),
-            rrr_nnt_10_age_below_60 = 100*mean(b_age_60No < log(nnt_10_or_age_below_60)),
-            )
+            rrr_arr_2_age_below_60 = 100*mean(b_age_60No < log(arr_2_or_age_below_60)),
+            rrr_arr_4_age_below_60 = 100*mean(b_age_60No < log(arr_4_or_age_below_60)),
+            rrr_arr_6_age_below_60 = 100*mean(b_age_60No < log(arr_6_or_age_below_60)),
+            rrr_arr_8_age_below_60 = 100*mean(b_age_60No < log(arr_8_or_age_below_60)))
 
 # then, age above 60
 Rc_age_above_60 <- median(IVdat_del[IVdat_del$age_60=="Yes" &
                                                !is.na(IVdat_del$age_60),]$control_del_rate)
-nnt_50_Rt_age_above_60 <- Rc_age_above_60 - (100/50)/100
-nnt_50_or_age_above_60 <- nnt_50_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(nnt_50_Rt_age_above_60 - 1)
+arr_2_Rt_age_above_60 <- Rc_age_above_60 - 0.02
+arr_2_or_age_above_60 <- arr_2_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(arr_2_Rt_age_above_60 - 1)
 
-nnt_25_Rt_age_above_60 <- Rc_age_above_60 - (100/25)/100
-nnt_25_or_age_above_60 <- nnt_25_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(nnt_25_Rt_age_above_60 - 1)
+arr_4_Rt_age_above_60 <- Rc_age_above_60 - 0.04
+arr_4_or_age_above_60 <- arr_4_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(arr_4_Rt_age_above_60 - 1)
 
-nnt_10_Rt_age_above_60 <- Rc_age_above_60 - (100/10)/100
-nnt_10_or_age_above_60 <- nnt_10_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(nnt_10_Rt_age_above_60 - 1)
+arr_6_Rt_age_above_60 <- Rc_age_above_60 - 0.06
+arr_6_or_age_above_60 <- arr_6_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(arr_6_Rt_age_above_60 - 1)
+
+arr_8_Rt_age_above_60 <- Rc_age_above_60 - 0.08
+arr_8_or_age_above_60 <- arr_8_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(arr_8_Rt_age_above_60 - 1)
 
 probs_age_above_60 = 
   spread_draws(m.brm_age, b_age_60Yes) |> 
   summarise(any_benefit_age_above_60 = 100*mean(b_age_60Yes < log(1)),
-            rrr_nnt_50_age_above_60 = 100*mean(b_age_60Yes < log(nnt_50_or_age_above_60)),
-            rrr_nnt_25_age_above_60 = 100*mean(b_age_60Yes < log(nnt_25_or_age_above_60)),
-            rrr_nnt_10_age_above_60 = 100*mean(b_age_60Yes < log(nnt_10_or_age_above_60)),
-            )
+            rrr_arr_2_age_above_60 = 100*mean(b_age_60Yes < log(arr_2_or_age_above_60)),
+            rrr_arr_4_age_above_60 = 100*mean(b_age_60Yes < log(arr_4_or_age_above_60)),
+            rrr_arr_6_age_above_60 = 100*mean(b_age_60Yes < log(arr_6_or_age_above_60)),
+            rrr_arr_8_age_above_60 = 100*mean(b_age_60Yes < log(arr_8_or_age_above_60)))
 
 ## Now dose
 # High dose
 Rc_high_dose <- median(IVdat_del[IVdat_del$dex_dose=="High" &
                                                !is.na(IVdat_del$dex_dose),]$control_del_rate)
 
-nnt_50_Rt_high_dose <- Rc_high_dose - (100/50)/100
-nnt_50_or_high_dose <- nnt_50_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(nnt_50_Rt_high_dose - 1)
+arr_2_Rt_high_dose <- Rc_high_dose - 0.02
+arr_2_or_high_dose <- arr_2_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(arr_2_Rt_high_dose - 1)
 
-nnt_25_Rt_high_dose <- Rc_high_dose - (100/25)/100
-nnt_25_or_high_dose <- nnt_25_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(nnt_25_Rt_high_dose - 1)
+arr_4_Rt_high_dose <- Rc_high_dose - 0.04
+arr_4_or_high_dose <- arr_4_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(arr_4_Rt_high_dose - 1)
 
-nnt_10_Rt_high_dose <- Rc_high_dose - (100/10)/100
-nnt_10_or_high_dose <- nnt_10_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(nnt_10_Rt_high_dose - 1)
+arr_6_Rt_high_dose <- Rc_high_dose - 0.06
+arr_6_or_high_dose <- arr_6_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(arr_6_Rt_high_dose - 1)
+
+arr_8_Rt_high_dose <- Rc_high_dose - 0.08
+arr_8_or_high_dose <- arr_8_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(arr_8_Rt_high_dose - 1)
 
 probs_high_dose = 
   spread_draws(m.brm_dose, b_dex_doseHigh) |> 
   summarise(any_benefit_high_dose = 100*mean(b_dex_doseHigh < log(1)),
-            rrr_nnt_50_high_dose = 100*mean(b_dex_doseHigh < log(nnt_50_or_high_dose)),
-            rrr_nnt_25_high_dose = 100*mean(b_dex_doseHigh < log(nnt_25_or_high_dose)),
-            rrr_nnt_10_high_dose = 100*mean(b_dex_doseHigh < log(nnt_10_or_high_dose)),
-            )
+            rrr_arr_2_high_dose = 100*mean(b_dex_doseHigh < log(arr_2_or_high_dose)),
+            rrr_arr_4_high_dose = 100*mean(b_dex_doseHigh < log(arr_4_or_high_dose)),
+            rrr_arr_6_high_dose = 100*mean(b_dex_doseHigh < log(arr_6_or_high_dose)),
+            rrr_arr_8_high_dose = 100*mean(b_dex_doseHigh < log(arr_8_or_high_dose)))
 
 # Low dose
 Rc_low_dose <- median(IVdat_del[IVdat_del$dex_dose=="Low" &
                                                !is.na(IVdat_del$dex_dose),]$control_del_rate)
-nnt_50_Rt_low_dose <- Rc_low_dose - (100/50)/100
-nnt_50_or_low_dose <- nnt_50_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(nnt_50_Rt_low_dose - 1)
+arr_2_Rt_low_dose <- Rc_low_dose - 0.02
+arr_2_or_low_dose <- arr_2_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(arr_2_Rt_low_dose - 1)
 
-nnt_25_Rt_low_dose <- Rc_low_dose - (100/25)/100
-nnt_25_or_low_dose <- nnt_25_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(nnt_25_Rt_low_dose - 1)
+arr_4_Rt_low_dose <- Rc_low_dose - 0.04
+arr_4_or_low_dose <- arr_4_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(arr_4_Rt_low_dose - 1)
 
-nnt_10_Rt_low_dose <- Rc_low_dose - (100/10)/100
-nnt_10_or_low_dose <- nnt_10_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(nnt_10_Rt_low_dose - 1)
+arr_6_Rt_low_dose <- Rc_low_dose - 0.06
+arr_6_or_low_dose <- arr_6_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(arr_6_Rt_low_dose - 1)
+
+arr_8_Rt_low_dose <- Rc_low_dose - 0.08
+arr_8_or_low_dose <- arr_8_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(arr_8_Rt_low_dose - 1)
 
 probs_low_dose = 
   spread_draws(m.brm_dose, b_dex_doseLow) |> 
   summarise(any_benefit_low_dose = 100*mean(b_dex_doseLow < log(1)),
-            rrr_nnt_50_low_dose = 100*mean(b_dex_doseLow < log(nnt_50_or_low_dose)),
-            rrr_nnt_25_low_dose = 100*mean(b_dex_doseLow < log(nnt_25_or_low_dose)),
-            rrr_nnt_10_low_dose = 100*mean(b_dex_doseLow < log(nnt_10_or_low_dose)),
-            )
+            rrr_arr_2_low_dose = 100*mean(b_dex_doseLow < log(arr_2_or_low_dose)),
+            rrr_arr_4_low_dose = 100*mean(b_dex_doseLow < log(arr_4_or_low_dose)),
+            rrr_arr_6_low_dose = 100*mean(b_dex_doseLow < log(arr_6_or_low_dose)),
+            rrr_arr_8_low_dose = 100*mean(b_dex_doseLow < log(arr_8_or_low_dose)))
 
 prob_tbl1 <- as.data.frame(rbind("Overall" = c("Overall", "Overall", Rc_overall, probs_overall),
      "Age below 60" = c("Age below 60", "Age", Rc_age_below_60, probs_age_below_60),
      "Age above 60" = c("Age above 60", "Age", Rc_age_above_60,probs_age_above_60),
      "High dose" = c("High dose", "Dose", Rc_high_dose, probs_high_dose),
      "Low dose" = c("Low dose", "Dose", Rc_low_dose, probs_low_dose))) %>%
-  mutate_at(vars(3:7), as.numeric) %>%
+  mutate_at(vars(3:8), as.numeric) %>%
   rename(`Subgroup` = V1,
          `group` = V2,
           `median_rate` = V3) %>%
   mutate(`median_rate` = `median_rate` * 100) %>%
-  mutate_at(vars(3:7), ~sprintf("%.1f", .))
+  mutate_at(vars(3:8), ~sprintf("%.1f", .))
 
-colnames(prob_tbl1) <- c("Subgroup", "Group", "Median control group rate (%)", "Probability of any benefit (%)", "Probability of NNT = 50 (%)",
-                        "Probability of NNT = 25 (%)", "Probability of NNT = 10 (%)")
+colnames(prob_tbl1) <- c("Subgroup", "Group", "Median control group rate (%)", "Probability of any benefit (%)", "Probability of ARR = 2 (%)",
+                        "Probability of ARR = 4 (%)", "Probability of ARR = 6 (%)", "Probability of ARR = 8 (%)")
 
 prob_tbl1 %>%
   gt(rowname_col = "Subgroup", groupname_col = "Group") %>%
@@ -1233,124 +1420,139 @@ prob_tbl1 %>%
 
 ```{r}
 #| label: tbl-benefit-probs-low_rob
-#| tbl-cap: Probability of various NNTs, excluding studies at high risk of bias.
+#| tbl-cap: Probability of various ARRs, excluding studies at high risk of bias.
 
-Rc_overall <- median(IVdat_del$control_del_rate)
+Rc_overall <- median(IVdat_del_low_rob$control_del_rate)
 
-nnt_50_Rt_overall <- Rc_overall - (100/50)/100
-nnt_50_or_overall <- (nnt_50_Rt_overall*(Rc_overall - 1))/(Rc_overall*(nnt_50_Rt_overall - 1))
+arr_2_Rt_overall <- Rc_overall - 0.02
+arr_2_or_overall <- (arr_2_Rt_overall*(Rc_overall - 1))/(Rc_overall*(arr_2_Rt_overall - 1))
 
-nnt_25_Rt_overall <- Rc_overall - (100/25)/100
-nnt_25_or_overall <- (nnt_25_Rt_overall*(Rc_overall - 1))/(Rc_overall*(nnt_25_Rt_overall - 1))
+arr_4_Rt_overall <- Rc_overall - 0.04
+arr_4_or_overall <- (arr_4_Rt_overall*(Rc_overall - 1))/(Rc_overall*(arr_4_Rt_overall - 1))
 
-nnt_10_Rt_overall <- Rc_overall - (100/10)/100
-nnt_10_or_overall <- (nnt_10_Rt_overall*(Rc_overall - 1))/(Rc_overall*(nnt_10_Rt_overall - 1))
+arr_6_Rt_overall <- Rc_overall - 0.06
+arr_6_or_overall <- (arr_6_Rt_overall*(Rc_overall - 1))/(Rc_overall*(arr_6_Rt_overall - 1))
+
+arr_8_Rt_overall <- Rc_overall - 0.08
+arr_8_or_overall <- (arr_8_Rt_overall*(Rc_overall - 1))/(Rc_overall*(arr_8_Rt_overall - 1))
 
 probs_overall = 
   m.brm_low_rob |> 
   tidy_draws() |> 
   summarise(any_benefit_overall = 100*mean(b_Intercept < log(1)),
-            rrr_nnt_50_overall = 100*mean(b_Intercept < log(nnt_50_or_overall)),
-            rrr_nnt_25_overall = 100*mean(b_Intercept < log(nnt_25_or_overall)),
-            rrr_nnt_10_overall = 100*mean(b_Intercept < log(nnt_10_or_overall)),
-            )
+            rrr_arr_50_overall = 100*mean(b_Intercept < log(arr_2_or_overall)),
+            rrr_arr_4_overall = 100*mean(b_Intercept < log(arr_4_or_overall)),
+            rrr_arr_6_overall = 100*mean(b_Intercept < log(arr_6_or_overall)),
+            rrr_arr_8_overall = 100*mean(b_Intercept < log(arr_8_or_overall)))
 
 # First, age below 60
-Rc_age_below_60 <- median(IVdat_del[IVdat_del$age_60=="No" &
-                                               !is.na(IVdat_del$age_60),]$control_del_rate)
-nnt_50_Rt_age_below_60 <- Rc_age_below_60 - (100/50)/100
-nnt_50_or_age_below_60 <- nnt_50_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(nnt_50_Rt_age_below_60 - 1)
+Rc_age_below_60 <- median(IVdat_del_low_rob[IVdat_del_low_rob$age_60=="No" &
+                                               !is.na(IVdat_del_low_rob$age_60),]$control_del_rate)
+arr_2_Rt_age_below_60 <- Rc_age_below_60 - 0.02
+arr_2_or_age_below_60 <- arr_2_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(arr_2_Rt_age_below_60 - 1)
 
-nnt_25_Rt_age_below_60 <- Rc_age_below_60 - (100/25)/100
-nnt_25_or_age_below_60 <- nnt_25_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(nnt_25_Rt_age_below_60 - 1)
+arr_4_Rt_age_below_60 <- Rc_age_below_60 - 0.04
+arr_4_or_age_below_60 <- arr_4_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(arr_4_Rt_age_below_60 - 1)
 
-nnt_10_Rt_age_below_60 <- Rc_age_below_60 - (100/10)/100
-nnt_10_or_age_below_60 <- nnt_10_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(nnt_10_Rt_age_below_60 - 1)
+arr_6_Rt_age_below_60 <- Rc_age_below_60 - 0.06
+arr_6_or_age_below_60 <- arr_6_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(arr_6_Rt_age_below_60 - 1)
+
+arr_8_Rt_age_below_60 <- Rc_age_below_60 - 0.08
+arr_8_or_age_below_60 <- arr_8_Rt_age_below_60*(Rc_age_below_60 - 1)/Rc_age_below_60*(arr_8_Rt_age_below_60 - 1)
 
 probs_age_below_60 = 
   spread_draws(m.brm_age_low_rob, b_age_60No) |> 
   summarise(any_benefit_age_below_60 = 100*mean(b_age_60No < log(1)),
-            rrr_nnt_50_age_below_60 = 100*mean(b_age_60No < log(nnt_50_or_age_below_60)),
-            rrr_nnt_25_age_below_60 = 100*mean(b_age_60No < log(nnt_25_or_age_below_60)),
-            rrr_nnt_10_age_below_60 = 100*mean(b_age_60No < log(nnt_10_or_age_below_60)),
-            )
+            rrr_arr_2_age_below_60 = 100*mean(b_age_60No < log(arr_2_or_age_below_60)),
+            rrr_arr_4_age_below_60 = 100*mean(b_age_60No < log(arr_4_or_age_below_60)),
+            rrr_arr_6_age_below_60 = 100*mean(b_age_60No < log(arr_6_or_age_below_60)),
+            rrr_arr_8_age_below_60 = 100*mean(b_age_60No < log(arr_8_or_age_below_60)))
 
 # then, age above 60
-Rc_age_above_60 <- median(IVdat_del[IVdat_del$age_60=="Yes" &
-                                               !is.na(IVdat_del$age_60),]$control_del_rate)
-nnt_50_Rt_age_above_60 <- Rc_age_above_60 - (100/50)/100
-nnt_50_or_age_above_60 <- nnt_50_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(nnt_50_Rt_age_above_60 - 1)
+Rc_age_above_60 <- median(IVdat_del_low_rob[IVdat_del_low_rob$age_60=="Yes" &
+                                               !is.na(IVdat_del_low_rob$age_60),]$control_del_rate)
+arr_2_Rt_age_above_60 <- Rc_age_above_60 - 0.02
+arr_2_or_age_above_60 <- arr_2_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(arr_2_Rt_age_above_60 - 1)
 
-nnt_25_Rt_age_above_60 <- Rc_age_above_60 - (100/25)/100
-nnt_25_or_age_above_60 <- nnt_25_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(nnt_25_Rt_age_above_60 - 1)
+arr_4_Rt_age_above_60 <- Rc_age_above_60 - 0.04
+arr_4_or_age_above_60 <- arr_4_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(arr_4_Rt_age_above_60 - 1)
 
-nnt_10_Rt_age_above_60 <- Rc_age_above_60 - (100/10)/100
-nnt_10_or_age_above_60 <- nnt_10_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(nnt_10_Rt_age_above_60 - 1)
+arr_6_Rt_age_above_60 <- Rc_age_above_60 - 0.06
+arr_6_or_age_above_60 <- arr_6_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(arr_6_Rt_age_above_60 - 1)
+
+arr_8_Rt_age_above_60 <- Rc_age_above_60 - 0.08
+arr_8_or_age_above_60 <- arr_8_Rt_age_above_60*(Rc_age_above_60 - 1)/Rc_age_above_60*(arr_8_Rt_age_above_60 - 1)
 
 probs_age_above_60 = 
   spread_draws(m.brm_age_low_rob, b_age_60Yes) |> 
   summarise(any_benefit_age_above_60 = 100*mean(b_age_60Yes < log(1)),
-            rrr_nnt_50_age_above_60 = 100*mean(b_age_60Yes < log(nnt_50_or_age_above_60)),
-            rrr_nnt_25_age_above_60 = 100*mean(b_age_60Yes < log(nnt_25_or_age_above_60)),
-            rrr_nnt_10_age_above_60 = 100*mean(b_age_60Yes < log(nnt_10_or_age_above_60)),
-            )
+            rrr_arr_2_age_above_60 = 100*mean(b_age_60Yes < log(arr_2_or_age_above_60)),
+            rrr_arr_4_age_above_60 = 100*mean(b_age_60Yes < log(arr_4_or_age_above_60)),
+            rrr_arr_6_age_above_60 = 100*mean(b_age_60Yes < log(arr_6_or_age_above_60)),
+            rrr_arr_8_age_above_60 = 100*mean(b_age_60Yes < log(arr_8_or_age_above_60)))
 
 ## Now dose
 # High dose
-Rc_high_dose <- median(IVdat_del[IVdat_del$dex_dose=="High" &
-                                               !is.na(IVdat_del$dex_dose),]$control_del_rate)
+Rc_high_dose <- median(IVdat_del_low_rob[IVdat_del_low_rob$dex_dose=="High" &
+                                               !is.na(IVdat_del_low_rob$dex_dose),]$control_del_rate)
 
-nnt_50_Rt_high_dose <- Rc_high_dose - (100/50)/100
-nnt_50_or_high_dose <- nnt_50_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(nnt_50_Rt_high_dose - 1)
+arr_2_Rt_high_dose <- Rc_high_dose - 0.02
+arr_2_or_high_dose <- arr_2_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(arr_2_Rt_high_dose - 1)
 
-nnt_25_Rt_high_dose <- Rc_high_dose - (100/25)/100
-nnt_25_or_high_dose <- nnt_25_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(nnt_25_Rt_high_dose - 1)
+arr_4_Rt_high_dose <- Rc_high_dose - 0.04
+arr_4_or_high_dose <- arr_4_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(arr_4_Rt_high_dose - 1)
 
-nnt_10_Rt_high_dose <- Rc_high_dose - (100/10)/100
-nnt_10_or_high_dose <- nnt_10_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(nnt_10_Rt_high_dose - 1)
+arr_6_Rt_high_dose <- Rc_high_dose - 0.06
+arr_6_or_high_dose <- arr_6_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(arr_6_Rt_high_dose - 1)
+
+arr_8_Rt_high_dose <- Rc_high_dose - 0.08
+arr_8_or_high_dose <- arr_8_Rt_high_dose*(Rc_high_dose - 1)/Rc_high_dose*(arr_8_Rt_high_dose - 1)
 
 probs_high_dose = 
   spread_draws(m.brm_dose_low_rob, b_dex_doseHigh) |> 
   summarise(any_benefit_high_dose = 100*mean(b_dex_doseHigh < log(1)),
-            rrr_nnt_50_high_dose = 100*mean(b_dex_doseHigh < log(nnt_50_or_high_dose)),
-            rrr_nnt_25_high_dose = 100*mean(b_dex_doseHigh < log(nnt_25_or_high_dose)),
-            rrr_nnt_10_high_dose = 100*mean(b_dex_doseHigh < log(nnt_10_or_high_dose)),
-            )
+            rrr_arr_2_high_dose = 100*mean(b_dex_doseHigh < log(arr_2_or_high_dose)),
+            rrr_arr_4_high_dose = 100*mean(b_dex_doseHigh < log(arr_4_or_high_dose)),
+            rrr_arr_6_high_dose = 100*mean(b_dex_doseHigh < log(arr_6_or_high_dose)),
+            rrr_arr_8_high_dose = 100*mean(b_dex_doseHigh < log(arr_8_or_high_dose)))
 
 # Low dose
-Rc_low_dose <- median(IVdat_del[IVdat_del$dex_dose=="Low" &
-                                               !is.na(IVdat_del$dex_dose),]$control_del_rate)
-nnt_50_Rt_low_dose <- Rc_low_dose - (100/50)/100
-nnt_50_or_low_dose <- nnt_50_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(nnt_50_Rt_low_dose - 1)
+Rc_low_dose <- median(IVdat_del_low_rob[IVdat_del_low_rob$dex_dose=="Low" &
+                                               !is.na(IVdat_del_low_rob$dex_dose),]$control_del_rate)
+arr_2_Rt_low_dose <- Rc_low_dose - 0.02
+arr_2_or_low_dose <- arr_2_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(arr_2_Rt_low_dose - 1)
 
-nnt_25_Rt_low_dose <- Rc_low_dose - (100/25)/100
-nnt_25_or_low_dose <- nnt_25_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(nnt_25_Rt_low_dose - 1)
+arr_4_Rt_low_dose <- Rc_low_dose - 0.04
+arr_4_or_low_dose <- arr_4_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(arr_4_Rt_low_dose - 1)
 
-nnt_10_Rt_low_dose <- Rc_low_dose - (100/10)/100
-nnt_10_or_low_dose <- nnt_10_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(nnt_10_Rt_low_dose - 1)
+arr_6_Rt_low_dose <- Rc_low_dose - 0.06
+arr_6_or_low_dose <- arr_6_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(arr_6_Rt_low_dose - 1)
+
+arr_8_Rt_low_dose <- Rc_low_dose - 0.08
+arr_8_or_low_dose <- arr_8_Rt_low_dose*(Rc_low_dose - 1)/Rc_low_dose*(arr_8_Rt_low_dose - 1)
 
 probs_low_dose = 
   spread_draws(m.brm_dose_low_rob, b_dex_doseLow) |> 
   summarise(any_benefit_low_dose = 100*mean(b_dex_doseLow < log(1)),
-            rrr_nnt_50_low_dose = 100*mean(b_dex_doseLow < log(nnt_50_or_low_dose)),
-            rrr_nnt_25_low_dose = 100*mean(b_dex_doseLow < log(nnt_25_or_low_dose)),
-            rrr_nnt_10_low_dose = 100*mean(b_dex_doseLow < log(nnt_10_or_low_dose)),
-            )
+            rrr_arr_2_low_dose = 100*mean(b_dex_doseLow < log(arr_2_or_low_dose)),
+            rrr_arr_4_low_dose = 100*mean(b_dex_doseLow < log(arr_4_or_low_dose)),
+            rrr_arr_6_low_dose = 100*mean(b_dex_doseLow < log(arr_6_or_low_dose)),
+            rrr_arr_8_low_dose = 100*mean(b_dex_doseLow < log(arr_8_or_low_dose)))
 
 prob_tbl1 <- as.data.frame(rbind("Overall" = c("Overall", "Overall", Rc_overall, probs_overall),
      "Age below 60" = c("Age below 60", "Age", Rc_age_below_60, probs_age_below_60),
      "Age above 60" = c("Age above 60", "Age", Rc_age_above_60,probs_age_above_60),
      "High dose" = c("High dose", "Dose", Rc_high_dose, probs_high_dose),
      "Low dose" = c("Low dose", "Dose", Rc_low_dose, probs_low_dose))) %>%
-  mutate_at(vars(3:7), as.numeric) %>%
+  mutate_at(vars(3:8), as.numeric) %>%
   rename(`Subgroup` = V1,
          `group` = V2,
           `median_rate` = V3) %>%
   mutate(`median_rate` = `median_rate` * 100) %>%
-  mutate_at(vars(3:7), ~sprintf("%.1f", .))
+  mutate_at(vars(3:8), ~sprintf("%.1f", .))
 
-colnames(prob_tbl1) <- c("Subgroup", "Group", "Median control group rate (%)", "Probability of any benefit (%)", "Probability of NNT = 50 (%)",
-                        "Probability of NNT = 25 (%)", "Probability of NNT = 10 (%)")
+colnames(prob_tbl1) <- c("Subgroup", "Group", "Median control group rate (%)", "Probability of any benefit (%)", "Probability of ARR = 2 (%)",
+                        "Probability of ARR = 4 (%)", "Probability of ARR = 6 (%)", "Probability of ARR = 8 (%)")
 
 prob_tbl1 %>%
   gt(rowname_col = "Subgroup", groupname_col = "Group") %>%
@@ -1373,11 +1575,23 @@ prob_tbl1 %>%
 
 Now to see if our results are sensitive to the choice of prior for 𝝁 and 𝛕.
 
-@tbl-prior-sensitivity below shows the results using three different sets of priors. First is the informative prior, which is the ${\mu} ∽ N(0, 0.82)$ and ${\tau} ∽ Cauchy(0, 0.5)$ prior we used for our primary analysis in @fig-forest-all-studies. The second is the vague prior, which is ${\mu} ∽ N(0, 4)$ and ${\tau} ∽ Cauchy(0, 4)$. This essentially imparts no information on the posterior estimate.
+@tbl-prior-sensitivity below shows the results using three different sets of priors. First is the informative prior, which is the prior we used for our primary analysis in @fig-forest-all-studies:
 
-Finally, we have the `Turner et al.` prior. Basically, in 2015 a bunch of people got together and calculated a long list of possible priors for ${\tau}$ depending on the outcome you're looking at and the type of intervention. We're looking at 'pharmacological vs. placebo/control' and the outcome type closet to our purpose is 'infection/onset of new disease'. This combination specifies ${\tau} ∽ LN(-2.49, 1.51)$ as a reasonable prior distribution. For the mean effect we will use the informative prior ${\mu} ∽ N(0, 0.82)$.
+$${\mu} ∽ Normal(0, 0.82)$$
+$${\tau} ∽ HalfCauchy(0.5)$$
 
-As you can see, the choice of prior doesn't really make a difference.
+
+The second is the vague prior, which essentially imparts no information on the posterior estimate.: 
+
+$${\mu} ∽ Normal(0, 4)$$
+$${\tau} ∽ HalfCauchy(0, 4)$$
+
+Finally, we have the `Turner et al.` prior. Basically, in 2015 a bunch of people got together and calculated a long list of possible priors for ${\tau}$ depending on the outcome you're looking at and the type of intervention. We're looking at 'pharmacological vs. placebo/control' and the outcome type closet to our purpose is 'infection/onset of new disease'. For this, Turner et al. recommend the prior: ${\tau} \sim Lognormal(-2.49, 1.51)$. For the mean effect we will use the weakly informative prior ${\mu} \sim Normal(0, 0.82)$. So this gives us:
+
+$${\mu} \sim Normal(0, 0.82)$$
+$${\tau} \sim Lognormal(-2.49, 1.51)$$
+
+As you can see below in @tbl-prior-sensitivity, the choice of prior doesn't really make a difference.
 
 ```{r}
 #| label: tbl-prior-sensitivity
@@ -1618,8 +1832,30 @@ grid.arrange(stop_effect, stop_futility, ncol =2)
 
 ## Analysis
 
+Similar to our model in `brms`, in `rjags` we need to specify priors for $\mu$ and $\tau$. However, JAGS uses precision rather than variance, where:
+
+$$
+Precision = \frac{1}{Variance}
+$$
+
+This means our priors look different in `rjags` and JAGS, but they have the same result. When working with JAGS we are specifying a prior distribution for $\tau^2$, rather than $\tau$. It is difficult to specify a prior for $\tau^2$ that can closely mimic our earlier priors for $\tau$, and for this reason I have decided to specify a vague prior for $\tau$ in the sequential analysis model:
+
+$$
+\tau^2 \sim HalfNormal(0, 10^2)
+$$
+
+In summary, our priors in JAGS are:
+
+$$\hat{\theta} \sim Normal(\theta, \frac{1}{\sigma^2})$$
+$$\theta \sim Normal(\mu, \frac{1}{\tau^2})$$
+$$\mu \sim Normal(0, \frac{1}{0.82^2})$$
+$$\tau^2 \sim HalfNormal(0, \frac{1}{10^2})$$
+
+Below in @tbl-fully-bayes-sequential we present the results of the fully Bayesian sequential analysis. As can be seen, this method suggests stopping for benefit after 15 studies when all studies are included, but the conclusion is uncertain when excluding studies at high risk of bias.
+
 ```{r}
-#| label: sequential-analysis-all-studies
+#| label: tbl-fully-bayes-sequential
+#| tbl-cap: Fully Bayesian sequential method.
 
 ### 6. R code to perform fully Bayesian sequential meta-analysis with a
 ###  log-normal heterogeneity prior on real data from Cochrane Library
@@ -1636,12 +1872,12 @@ grid.arrange(stop_effect, stop_futility, ncol =2)
 ### Define Bayesian model
 write("model {for (i in 1:n) { 
       yi[i] ~ dnorm(theta.i[i], 1 / vi[i])
-      theta.i[i] ~ dnorm(theta, 1/tsq)} 
-      theta  ~ dnorm(mu, prec)
-      tsq ~ dnorm(0, 1/0.25) T(0,)}", "BayesMA.bug")
+      theta.i[i] ~ dnorm(theta, 1/tsq)}
+      theta ~ dnorm(mu, prec)
+      tsq ~ dnorm(0, 1/100) T(0,)}", "BayesMA.bug")
 
 Bayesian.seqMA <- function(yi, vi, delta, 
-                           epsilon.e=0.006,epsilon.f=0.010, var=0.6724,iterations=1E5, chains=3, 
+                           epsilon.e=0.006,epsilon.f=0.010, var = 0.6724, iterations=1E5, chains=3, 
                            burn=5000, thin=10){
   i <- 1; result <- "Uncertain"; diag <- c()
                            while(result == "Uncertain" & i <= length(yi)) {
@@ -1649,7 +1885,7 @@ Bayesian.seqMA <- function(yi, vi, delta,
                              v <- vi[1:i]
                       BayesMA.jags <- jags.model("BayesMA.bug", n.chains=chains, 
                                                  quiet=TRUE,list(yi=Y, vi=v, n=i, mu=0, prec=1 / var),
-                                                 inits=list(theta=runif(1, -2, 2),tsq= 1/runif(1, 0, 0.5)))
+                                                 inits=list(theta=runif(1, -2, 2), tsq = runif(1, 0, 0.5)))
                       update(BayesMA.jags,burn, progress.bar="none") 
                       BayesMA.sims <- coda.samples(BayesMA.jags, c("theta", "tsq"),n.iter=iterations, thin=thin,progress.bar="none")
                       diag[i] <- gelman.diag(BayesMA.sims)$mpsrf
@@ -1690,9 +1926,6 @@ df_all <- data.frame(cbind("subgroup" = "All studies", "outcome" = dat_all$resul
   dplyr::select(subgroup, outcome, no_studies, total_no_studies, mu_conf, tau_conf)
 
 ## Repeat same excluding low RoB studies
-IVdat_del_low_rob <- IVdat_del %>%
-  filter(!overall == "x") 
-
 dat_low_rob <- Bayesian.seqMA(yi=IVdat_del_low_rob[,132], vi=IVdat_del_low_rob[,133], delta=-0.18)
 
 df_low_rob <- data.frame(cbind("subgroup" = "Excluding studies at high RoB", "outcome" = dat_low_rob$result, "no_studies" = dat_low_rob$studies, 
@@ -1734,7 +1967,7 @@ $±H$ is the horizontal boundaries of the O'Brien-Fleming stopping boundary. To 
 
 $V_{max}$ is the maximum vertical boundary of the O'Brien-Fleming stopping boundary. To specify an ${\alpha}$ of 0.05 and ${\beta}$ of 0.1, $V_{max}$ is set to 11.079.
 
-As can be seen below in @tbl-semibayes-all, this method suggests the benefit is uncertain with the current data.
+As can be seen below in @tbl-semibayes-all, this method suggests the benefit is uncertain with the current data. The slight discordance with the fully Bayesian model is more stringent criteria for stopping in the Semi-Bayesian model.
 
 ::: panel-tabset
 ## All studies
@@ -2003,12 +2236,12 @@ all <- ggplot(aes(exp(b_Intercept),
              color = "black",
              size = 0.2,
              arrow = arrow(length = unit(0.02, "npc"), type = "closed")) +             
-  annotate("text", x = 3, y = 2,  label = "Benefit not certain\n(Semi-Bayesian)", colour = "red") +
-  geom_segment(aes(x = 3.5, y = 10, xend = 1.5, yend = 10),
+  annotate("text", x = 3, y = 1,  label = "Benefit not certain\n(Semi-Bayesian)", colour = "red") +
+  geom_segment(aes(x = 3.5, y = 2, xend = 1.5, yend = 2),
              color = "black",
              size = 0.2,
              arrow = arrow(length = unit(0.02, "npc"), type = "closed")) +             
-  annotate("text", x = 3, y = 10,  label = "Benefit certain\n(Fully Bayesian)", colour = "darkgreen") +
+  annotate("text", x = 3, y = 3,  label = "Benefit certain\n(Fully Bayesian)", colour = "darkgreen") +
   theme_light() +
   labs(x="Odds ratio (log scale)", title = "A: All studies") +
   ylab(NULL) +
@@ -2041,17 +2274,27 @@ grid.arrange(all, low_rob, ncol = 2)
 
 # Bayesian re-analysis of DECADE
 
-Now to re-analyse the findings of the DECADE trial.
+Now to re-analyse the findings of the DECADE trial. Below is an overview of what we will do in this section:
 
-For this we will use the `brms` package to do logistic regression (outcome: `delirium`, predictor: `group`).
+1.  Calculate priors and the minimum clinically important difference (MCID) for the DECADE trial. For priors, we will use reference and data-derived priors. Reference priors are based on possible attitudes towards this research question, and are guided by the MCID. The MCID is the minimum absolute log odds ratio above which we would consider an effect to be 'meaningful.' Data-derived priors are obtained from the meta-analysis excluding the DECADE trial.
+
+2.  Calculate the probabilities of any benefit or harm of dexmedetomidine in the DECADE trial, and effects exceeding the MCID, using the priors in step 1.
+
+3.  Calculate the probabilities of various absolute risk reductions (from the DECADE trial) using the priors in step 1.
+
+4.  Present and compare empirical cumulative distribution function (ECDF) curves for A) the meta-analysis including all studies, B) the meta-analysis excluding the DECADE trial, C) the DECADE trial alone, and D) the shrinkage estimate of the DECADE trial.
+
+5.  Calculate the average treatment effect (ATE) (in the form of a risk difference and credible interval) from the DECADE trial using the priors in step 1.
+
+For our re-analysis we will use the `brms` package to perform logistic regression (outcome: `delirium`, predictor: `group`).
 
 ::: callout-note
 They additionally control for cardiac history in the DECADE trial (given this was 'unmatched' at baseline between the two groups as per their definition of 'unmatched') but we do not have these data, so we can't do this. The effect on the results appears minimal.
 :::
 
-A logit-binomial regression is used: binomial family with logit link function. The output of this analysis is a log odds ratio - which is convenient for us, because the output of our meta-analysis is a log odds ratio, meaning we don't have to do any interim conversions. Turan et al. report relative risks with the log link function in their GLM but this is not really best practice. See [Doi et al.'s 2022 paper](https://www.jclinepi.com/article/S0895-4356(21)00241-9/fulltext). For our purposes it's appropriate to use odds ratios, especially because the odds ratio is portable across different baseline risks (unlike the RR). To my mind this is critical for meta-analysis, because we want to apply our mean effect size across different populations.
+A logit-binomial regression model is used: binomial family with logit link function. The output of this analysis is a log odds ratio - which is convenient for us, because the output of our meta-analysis is a log odds ratio, meaning we don't have to do any interim conversions. Turan et al. report relative risks with the log link function in their GLM but this is not really best practice. See [Doi et al.'s 2022 paper](https://www.jclinepi.com/article/S0895-4356(21)00241-9/fulltext). For our purposes it's appropriate to use odds ratios, especially because the odds ratio is transportable across different baseline risks (unlike the RR). However, note that this particular assertion, championed by Suhail Doi, is controversial ([see this long, heated argument](https://discourse.datamethods.org/t/should-one-derive-risk-difference-from-the-odds-ratio/4403)). Assuming the transportability theory is right, to my mind this transportable is critical for meta-analysis, because we want to apply our mean effect size across different baseline risks.
 
-We need to consider priors for the 'group' coefficient of the logistic regression.
+We need to consider priors for the 'group' coefficient for the logistic regression.
 
 ::: callout-note
 You'll notice there is a discrepancy between the prior family and the likelihood family; our prior is a normal distribution but the regression family uses a binomial (or Bernoulli) distribution. The normal distribution should approximate the binomial distribution with 794 data points, so it's appropriate that we use normally distributed priors.
@@ -2061,7 +2304,7 @@ There are two approaches to informative priors here: reference priors, and data-
 
 First, the data-derived priors.
 
-Here, we run a Bayesian meta-analysis excluding the DECADE trial. We use a weakly informative prior for the mean effect, ${\mu}$, which is a normal distribution with mean 0 and standard deviation 0.82: $N(0, 0.82)$. We also use a weakly informative prior for heterogeneity SD, ${\tau}$, which is a Cauchy distribution with a 0.5 scale parameter: $Cauchy(0, 0.50)$.
+Here, we run a Bayesian meta-analysis excluding the DECADE trial. We use a weakly informative prior for the mean effect, ${\mu}$, which is a normal distribution with mean 0 and standard deviation 0.82: $Normal(0, 0.82)$. We also use a weakly informative prior for heterogeneity SD, ${\tau}$, which is a half-Cauchy distribution with a 0.5 scale parameter: $HalfCauchy(0.5)$. These are the exact same priors we used for the primary analysis in @fig-forest-all-studies.
 
 The code below is for the meta-analysis. It's the same code that is used for all the other meta-analytic models in this document. `IVdat_del` is an `escalc()` object with effect sizes and variances for studies in the meta-analysis, excluding the DECADE trial.
 
@@ -2079,15 +2322,19 @@ meta_analysis_brm <- brms::brm(yi | se(sei) ~ 0 + Intercept + (1 | author1),
               seed = 123)
 ```
 
-The normal-normal hierarchical model for meta-analysis (which we are using here) assumes that each individual study's effects are normally distributed (the first 'normal'), but also that the overall effects across different populations follows a normal distribution with mean ${\mu}$ and standard deviation ${\tau}$ (the second 'normal'). This has the notation: $N({\mu}, {\tau}^2)$. This is why ${\tau}$ is a measure of heterogeneity; it quantifies variability in effects across patient populations.
+As discussed above, the normal-normal hierarchical model for meta-analysis (which we are using here) assumes that each individual study's effects are normally distributed (the first 'normal'), but also that the overall effects across different populations follows a normal distribution with mean ${\mu}$ and standard deviation ${\tau}$ (the second 'normal'). This has the notation: $N({\mu}, {\tau}^2)$. This is why ${\tau}$ is a measure of heterogeneity; it quantifies variability in effects across patient populations.
 
-Now, what I have done below is make the prior for the `group` coefficient in logistic regression for the DECADE trial: $N({\mu}, {\tau}^2)$.
+Now, what I have done below is make the prior for the `treatment` coefficient in logistic regression for the DECADE trial a normal distribution with mean $\mu$ and standard deviation $\tau$ (both obtained from the meta-analysis (MA)):
+
+$$
+\beta_\text{treatment} \sim Normal(\mu_\text{MA}, {\tau}^2_\text{MA})
+$$
 
 ::: callout-note
-This is imperfect for a few reasons. Firstly, I said that ${\tau}$ is the SD of the true population mean effect. So there is no reason we should *a priori* expect the SD of DECADE's observed effect to be equal to ${\tau}$ from our meta-analysis (because the DECADE trial was performed on just one of these theoretical 'populations'). The other option is that we could use the estimated standard error of the mean effect from the meta-analysis (but this is actually pretty similar to the ${\tau}$ estimate).
+This is imperfect for a few reasons. Firstly, I said that ${\tau}$ is the standard deviation of the true population mean effect. So there is no reason we should *a priori* expect the SD of DECADE's observed effect to be equal to ${\tau}$ from our meta-analysis (because the DECADE trial was performed on just one of these theoretical 'populations'). The other option is that we could use the estimated standard error of the mean effect from the meta-analysis (but this is actually pretty similar to the ${\tau}$ estimate).
 :::
 
-I didn't specify a prior for the ${\sigma}$ parameter in `brms`, instead using the default vague prior. I set the Intercept prior (the odds of delirium when all predictor variables are held at their reference value) to $N(0, 1)$.
+I set the Intercept prior (the odds of delirium when all predictor variables are held at their reference value) to $N(0, 1)$.
 
 So the logistic regression model for DECADE's results that I call in `brms` is as follows:
 
@@ -2110,11 +2357,23 @@ We also want to present analyses downweighting the effect of the meta-analysis p
 
 With all that in mind, I have the following data-derived priors for DECADE's results, which are shown further down in @fig-priors-plots-all:
 
--   Meta-analysis prior with the full weight: $N({\mu}, {\tau})$
+-   Meta-analysis prior with the full weight:
 
--   Meta-analysis prior with the half weight: $N({\mu}, {\tau} × 2)$
+$$
+Normal({\mu}, {\tau})
+$$
 
--   Meta-analysis prior with the quarter weight: $N({\mu}, {\tau} × 4)$
+-   Meta-analysis prior with the half weight:
+
+$$
+Normal({\mu}, {\tau} × 2)
+$$
+
+-   Meta-analysis prior with the quarter weight:
+
+$$
+Normal({\mu}, {\tau} × 4)
+$$
 
 Now for the 'reference' priors.
 
@@ -2134,9 +2393,9 @@ $$
 \text{SMD} = log(OR) × \frac{{\pi}}{\sqrt{3}}
 $$
 
-This results in an MCID of 0.18 on the log odds ratio scale. This is equivalent to an odds ratio of 0.84, or a 16% reduction in the odds of delirium. Using the control delirium rate in the DECADE trial of 12%, this means we would consider a 2% absolute risk reduction (to a rate of 10% in the dexmedetomidine group) as a 'meaningful' reduction.
+This results in an MCID of \|0.18\| on the log odds ratio scale. This is equivalent to an odds ratio of 0.84, or a 16% reduction in the odds of delirium. Using the control delirium rate in the DECADE trial of 12%, this means we would consider a 2% absolute risk reduction (to a rate of 10% in the dexmedetomidine group) as a 'meaningful' reduction.
 
-This also allows us to specify the **region of practical equivalence** (ROPE). This is the range of values which, from a practical perspective, are equivalent to the null (zero effect). The decision rules for the ROPE are best described by [Kruschke](https://nyu-cdsc.github.io/learningr/assets/kruschke_bayesian_in_R.pdf):
+This also allows us to specify the **region of practical equivalence** (ROPE). This is the range of values which, from a practical perspective, are equivalent to the null (zero effect). The decision rules for the ROPE were described by [Kruschke](https://nyu-cdsc.github.io/learningr/assets/kruschke_bayesian_in_R.pdf) (note these are not universally embraced):
 
 > "A parameter value is declared to be not credible, or rejected, if its entire ROPE lies outside the 95% highest density interval (HDI) of the posterior distribution of that parameter ... Notice that when the HDI excludes the ROPE, we are not rejecting all values within the ROPE; we are rejecting only the null value."
 
@@ -2202,19 +2461,18 @@ What should be mentioned here is that we are calculating the **standard error**,
 
 With all that in mind, I have used the following reference priors for the DECADE's results:
 
--   Vague: $N(0, 10)$. This is an essentially flat prior which imparts no information on the posterior estimate.
--   Strongly skeptical: $N(0.27, 0.186)$. Equivalent to an RCT enrolling 1000 people and showing a 31% increase in the odds of delirium ($MCID × 1.5$) with dexmedetomidine.
--   Skeptical: $N(0.18, 0.267)$. Equivalent to an RCT enrolling 500 people and showing a 20% increase in the odds of delirium ($MCID$) with dexmedetomidine.
--   Neutral: $N(0, 0.355)$. 95% of the probability density lies between an odds ratio of 0.5 to 2.0. This is a reasonable prior to reflect the attitude of someone who thinks dexmedetomidine is equally likely to have a beneficial or harmful effect, and smaller effects are more likely than bigger ones.
--   Optimistic: $N(-0.18, 0.287)$. Equivalent to an RCT enrolling 500 people and showing a 16% reduction in the odds of delirium ($MCID$) with dexmedetomidine.
--   Strongly optimistic: $N(-0.27, 0.206)$. Equivalent to an RCT enrolling 1000 people and showing a 24% reduction in the odds of delirium ($MCID × 1.5$) with dexmedetomidine.
+-   Vague: $Normal(0, 10)$. This is an essentially flat prior which imparts no information on the posterior estimate.
+-   Strongly skeptical: $Normal(0.27, 0.186)$. Equivalent to an RCT enrolling 1000 people and showing a 31% increase in the odds of delirium ($MCID × 1.5$) with dexmedetomidine.
+-   Skeptical: $Normal(0.18, 0.267)$. Equivalent to an RCT enrolling 500 people and showing a 20% increase in the odds of delirium ($MCID$) with dexmedetomidine.
+-   Neutral: $Normal(0, 0.355)$. 95% of the probability density lies between an odds ratio of 0.5 to 2.0. This is a reasonable prior to reflect the attitude of someone who thinks dexmedetomidine is equally likely to have a beneficial or harmful effect, and smaller effects are more likely than bigger ones.
+-   Optimistic: $Normal(-0.18, 0.287)$. Equivalent to an RCT enrolling 500 people and showing a 16% reduction in the odds of delirium ($MCID$) with dexmedetomidine.
+-   Strongly optimistic: $Normal(-0.27, 0.206)$. Equivalent to an RCT enrolling 1000 people and showing a 24% reduction in the odds of delirium ($MCID × 1.5$) with dexmedetomidine.
 
-## Prior plots
+## Posterior probabilities with different priors
 
 @fig-priors-plots-all shows the distributions of the priors. The top two panels show the distribution of the (A) reference priors, and (B) meta-analysis priors. The bottom forest plot shows the posterior distribution of DECADE's results for each prior. The grey region denotes the ROPE. The purple lines show the DECADE's findings when analysed alone. The grey lines represent the prior. Regions of the posterior that suggest benefit (OR \< 1) are shaded in blue and those that suggest harm (OR \> 1) are shaded in red. The probabilities of any harm or benefit, and the harm or benefit exceeding the MCID, are shown for each prior. Analyses of all studies and excluding studies at high risk of bias are provided.
 
 ::: panel-tabset
-
 ## All studies
 
 ```{r}
@@ -2230,11 +2488,11 @@ With all that in mind, I have used the following reference priors for the DECADE
 #|   Plots of the distributions of the reference and meta-analysis priors.
 
 ## Create a dataframe with the DECADE trial's results
-group <- c(rep("dexmedetomidine", 398), rep("placebo", 396))
+treatment <- c(rep("dexmedetomidine", 398), rep("placebo", 396))
 delirium <- c(rep(1, 67), rep(0, 331), rep(1, 46), rep(0, 350))
-df <- data.frame(group, delirium)
+df <- data.frame(treatment, delirium)
 
-df$group <- factor(df$group, levels = c("placebo", "dexmedetomidine"))
+df$treatment <- factor(df$treatment, levels = c("placebo", "dexmedetomidine"))
 
 ## First create our MA priors
 ## start with the fully weighted MA prior
@@ -2254,9 +2512,9 @@ median_tau_excl_decade <- m.brm_excluding_decade %>%
 
 draws_fn <- function(brm) {
   brm %>%
-  spread_draws(b_groupdexmedetomidine) %>%
+  spread_draws(b_treatmentdexmedetomidine) %>%
   median_qi() %>% 
-  mutate(estimate = paste0(sprintf('%.2f', exp(b_groupdexmedetomidine)), 
+  mutate(estimate = paste0(sprintf('%.2f', exp(b_treatmentdexmedetomidine)), 
                   ' [', sprintf('%.2f', exp(.lower)),
                   ', ', sprintf('%.2f', exp(.upper)), ']'))
 }
@@ -2264,8 +2522,8 @@ draws_fn <- function(brm) {
 # Also we need a function to extract the draws for the forest plot
 forest_draws_fn <- function(brm, prior) {
   brm %>%
-  spread_draws(b_groupdexmedetomidine) %>%
-    dplyr::select(b_groupdexmedetomidine) %>%
+  spread_draws(b_treatmentdexmedetomidine) %>%
+    dplyr::select(b_treatmentdexmedetomidine) %>%
     mutate(subgroup = prior)
     
 }
@@ -2274,17 +2532,17 @@ forest_draws_fn <- function(brm, prior) {
 benefit_fn <- function(brm) {
   brm %>% 
   tidy_draws() %>% 
-  summarise(prob_benefit = sprintf('%.1f', 100*mean(b_groupdexmedetomidine < 0)),
-            prob_harm = sprintf('%.1f', 100*mean(b_groupdexmedetomidine > 0)),
-            prob_mcid_harm = sprintf('%.1f', 100*mean(b_groupdexmedetomidine > 0.18)),
-            prob_mcid_benefit = sprintf('%.1f', 100*mean(b_groupdexmedetomidine < -0.18)))
+  summarise(prob_benefit = sprintf('%.1f', 100*mean(b_treatmentdexmedetomidine < 0)),
+            prob_harm = sprintf('%.1f', 100*mean(b_treatmentdexmedetomidine > 0)),
+            prob_mcid_harm = sprintf('%.1f', 100*mean(b_treatmentdexmedetomidine > 0.18)),
+            prob_mcid_benefit = sprintf('%.1f', 100*mean(b_treatmentdexmedetomidine < -0.18)))
 }
 
 
-full_weight_ma_priors <- brms::prior(normal(-0.516, 0.170), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+full_weight_ma_priors <- brms::prior(normal(-0.516, 0.170), class = b, coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
 
-ma_full_weight.brm <- brm(delirium ~ 0 + Intercept + group,
+ma_full_weight.brm <- brm(delirium ~ 1 + treatment,
              data = df,
              family = bernoulli(link = "logit"),
              prior = full_weight_ma_priors,
@@ -2301,8 +2559,8 @@ ma_full_weight_benefit <- benefit_fn(ma_full_weight.brm)
 
 ## Now for the 50% weight (get this by multiplying SD by 2)
 
-half_weight_ma_priors <- brms::prior(normal(-0.516, 0.170*2), class = b, coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+half_weight_ma_priors <- brms::prior(normal(-0.516, 0.170*2), class = b, coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
 
 ma_half_weight.brm <- update(ma_full_weight.brm, prior = half_weight_ma_priors)
 
@@ -2313,8 +2571,8 @@ ma_half_weight_benefit <- benefit_fn(ma_half_weight.brm)
 
 ## Now for the 25% weight (get this by multiplying SD by 4)
 
-quarter_weight_ma_priors <- brms::prior(normal(-0.516, 0.170*4), class = b, coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+quarter_weight_ma_priors <- brms::prior(normal(-0.516, 0.170*4), class = b, coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
 
 ma_quarter_weight.brm <- update(ma_full_weight.brm, prior = quarter_weight_ma_priors)
 
@@ -2324,8 +2582,8 @@ ma_quarter_weight_benefit <- benefit_fn(ma_quarter_weight.brm)
 
 ## Now for our reference priors
 # Start with vague with SD = 10
-vague_priors <- brms::prior(normal(0,10), class = b, coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+vague_priors <- brms::prior(normal(0,10), class = b, coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
 
 vague.brm <- update(ma_full_weight.brm, prior = vague_priors)
 
@@ -2348,8 +2606,8 @@ rt <- (0.12*exp(0.27))/(0.12*(exp(0.27) - 1) + 1)
 se_very_skeptical <- sqrt((1/60) + (1/440) + (1/76) + (1/424))
 ## 0.1856227
 
-very_skeptical_priors <- brms::prior(normal(0.27, 0.1856227), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+very_skeptical_priors <- brms::prior(normal(0.27, 0.1856227), coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
   
 very_skeptical.brm <- update(ma_full_weight.brm, prior = very_skeptical_priors)
 
@@ -2368,8 +2626,8 @@ rt <- (0.12*exp(0.18))/(0.12*(exp(0.18) - 1) + 1)
 se_skeptical <- sqrt((1/30) + (1/220) + (1/35) + (1/215))
 ## 0.2666484
 
-skeptical_priors <- brms::prior(normal(0.18, 0.2666484), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+skeptical_priors <- brms::prior(normal(0.18, 0.2666484), coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
   
 skeptical.brm <- update(ma_full_weight.brm, prior = skeptical_priors)
 
@@ -2381,8 +2639,8 @@ skeptical_benefit <- benefit_fn(skeptical.brm)
 # neutral prior is defined so that 0.95 of the probability mass ranges from an odds ratio between 0.5 and 2.0. 
 # As done in https://ccforum.biomedcentral.com/articles/10.1186/s13054-022-04120-y#Sec12
 se_neutral <- 0.355
-neutral_priors <- brms::prior(normal(0, 0.355), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+neutral_priors <- brms::prior(normal(0, 0.355), coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
   
 neutral.brm <- update(ma_full_weight.brm, prior = neutral_priors)
 
@@ -2402,8 +2660,8 @@ se_optimistic <- sqrt((1/30) + (1/220) + (1/25) + (1/225))
 
 ## [1] 0.2869203
 
-optimistic_priors <- brms::prior(normal(-0.18, 0.2869203), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+optimistic_priors <- brms::prior(normal(-0.18, 0.2869203), coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
   
 optimistic.brm <- update(ma_full_weight.brm, prior = optimistic_priors)
 optimistic_draws <- draws_fn(optimistic.brm)
@@ -2420,8 +2678,8 @@ rt <- (0.12*exp(-0.27))/(0.12*(exp(-0.27) - 1) + 1)
 se_very_optimistic <- sqrt((1/60) + (1/440) + (1/47) + (1/453))
 ## [1] 0.2059696
 
-very_optimistic_priors <- brms::prior(normal(-0.27, 0.2059696), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+very_optimistic_priors <- brms::prior(normal(-0.27, 0.2059696), coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
   
 very_optimistic.brm <- update(ma_full_weight.brm, prior = very_optimistic_priors)
 
@@ -2568,7 +2826,7 @@ forest.data <- rbind(vague_forest_draws, very_skeptical_forest_draws, skeptical_
   mutate(subgroup = factor(subgroup, levels = c("Vague", "Very skeptical", "Skeptical", "Neutral", "Optimistic", 
                                 "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")))
 
-forest <- ggplot(aes(exp(b_groupdexmedetomidine), 
+forest <- ggplot(aes(exp(b_treatmentdexmedetomidine), 
            y = fct_relevel(subgroup, rev)), 
        data = forest.data) +
   geom_vline(xintercept = 1, color = "black", 
@@ -2576,7 +2834,7 @@ forest <- ggplot(aes(exp(b_groupdexmedetomidine),
   stat_slab(aes(fill = after_stat(x < 1)), slab_colour = "black") +
   geom_pointintervalh(aes(xmin = exp(.lower), 
                           xmax = exp(.upper), 
-                          x = exp(b_groupdexmedetomidine)),
+                          x = exp(b_treatmentdexmedetomidine)),
                       data = draws_df, 
                       col = "black", alpha = 1, position = position_nudge(y = -0.1)) +
   stat_slab(aes(xdist = exp(distributional::dist_normal(mean = decade_posterior_mean, sd = decade_posterior_sd)),
@@ -2639,6 +2897,7 @@ reference_priors + ma_priors + prior_details + forest  + posteriors + plot_layou
 ```
 
 ## Excluding studies at high risk of bias
+
 ```{r}
 #| label: fig-priors-plots-low-rob
 #| fig-width: 12
@@ -2652,11 +2911,11 @@ reference_priors + ma_priors + prior_details + forest  + posteriors + plot_layou
 #|   Plots of the distributions of the reference and meta-analysis priors, excluding studies at high risk of bias.
 
 ## Create a dataframe with the DECADE trial's results
-group <- c(rep("dexmedetomidine", 398), rep("placebo", 396))
+treatment <- c(rep("dexmedetomidine", 398), rep("placebo", 396))
 delirium <- c(rep(1, 67), rep(0, 331), rep(1, 46), rep(0, 350))
-df <- data.frame(group, delirium)
+df <- data.frame(treatment, delirium)
 
-df$group <- factor(df$group, levels = c("placebo", "dexmedetomidine"))
+df$treatment <- factor(df$treatment, levels = c("placebo", "dexmedetomidine"))
 
 ## First create our MA priors
 ## start with the fully weighted MA prior
@@ -2676,9 +2935,9 @@ median_tau_excl_decade <- m.brm_excluding_decade_low_rob %>%
 
 draws_fn <- function(brm) {
   brm %>%
-  spread_draws(b_groupdexmedetomidine) %>%
+  spread_draws(b_treatmentdexmedetomidine) %>%
   median_qi() %>% 
-  mutate(estimate = paste0(sprintf('%.2f', exp(b_groupdexmedetomidine)), 
+  mutate(estimate = paste0(sprintf('%.2f', exp(b_treatmentdexmedetomidine)), 
                   ' [', sprintf('%.2f', exp(.lower)),
                   ', ', sprintf('%.2f', exp(.upper)), ']'))
 }
@@ -2686,8 +2945,8 @@ draws_fn <- function(brm) {
 # Also we need a function to extract the draws for the forest plot
 forest_draws_fn <- function(brm, prior) {
   brm %>%
-  spread_draws(b_groupdexmedetomidine) %>%
-    dplyr::select(b_groupdexmedetomidine) %>%
+  spread_draws(b_treatmentdexmedetomidine) %>%
+    dplyr::select(b_treatmentdexmedetomidine) %>%
     mutate(subgroup = prior)
     
 }
@@ -2696,17 +2955,17 @@ forest_draws_fn <- function(brm, prior) {
 benefit_fn <- function(brm) {
   brm %>% 
   tidy_draws() %>% 
-  summarise(prob_benefit = sprintf('%.1f', 100*mean(b_groupdexmedetomidine < 0)),
-            prob_harm = sprintf('%.1f', 100*mean(b_groupdexmedetomidine > 0)),
-            prob_mcid_harm = sprintf('%.1f', 100*mean(b_groupdexmedetomidine > 0.18)),
-            prob_mcid_benefit = sprintf('%.1f', 100*mean(b_groupdexmedetomidine < -0.18)))
+  summarise(prob_benefit = sprintf('%.1f', 100*mean(b_treatmentdexmedetomidine < 0)),
+            prob_harm = sprintf('%.1f', 100*mean(b_treatmentdexmedetomidine > 0)),
+            prob_mcid_harm = sprintf('%.1f', 100*mean(b_treatmentdexmedetomidine > 0.18)),
+            prob_mcid_benefit = sprintf('%.1f', 100*mean(b_treatmentdexmedetomidine < -0.18)))
 }
 
 
-full_weight_ma_priors <- brms::prior(normal(-0.410, 0.137), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+full_weight_ma_priors <- brms::prior(normal(-0.410, 0.137), coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
 
-ma_full_weight.brm_low_rob <- brm(delirium ~ 0 + Intercept + group,
+ma_full_weight.brm_low_rob <- brm(delirium ~ 1 + treatment,
              data = df,
              family = bernoulli(link = "logit"),
              prior = full_weight_ma_priors,
@@ -2723,8 +2982,8 @@ ma_full_weight_benefit <- benefit_fn(ma_full_weight.brm_low_rob)
 
 ## Now for the 50% weight (get this by multiplying SD by 2)
 
-half_weight_ma_priors <- brms::prior(normal(-0.410, 0.137*2), class = b, coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+half_weight_ma_priors <- brms::prior(normal(-0.410, 0.137*2), class = b, coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
 
 ma_half_weight.brm_low_rob <- update(ma_full_weight.brm_low_rob, prior = half_weight_ma_priors)
 
@@ -2735,8 +2994,8 @@ ma_half_weight_benefit <- benefit_fn(ma_half_weight.brm_low_rob)
 
 ## Now for the 25% weight (get this by multiplying SD by 4)
 
-quarter_weight_ma_priors <- brms::prior(normal(-0.410, 0.137*4), class = b, coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+quarter_weight_ma_priors <- brms::prior(normal(-0.410, 0.137*4), class = b, coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
 
 ma_quarter_weight.brm_low_rob <- update(ma_full_weight.brm_low_rob, prior = quarter_weight_ma_priors)
 
@@ -2746,10 +3005,10 @@ ma_quarter_weight_benefit <- benefit_fn(ma_quarter_weight.brm_low_rob)
 
 ## Now for our reference priors
 # Start with vague with SD = 10
-vague_priors <- brms::prior(normal(0,10), class = b, coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+vague_priors <- brms::prior(normal(0,10), class = b, coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
 
-vague.brm <- brm(delirium ~ 0 + Intercept + group,
+vague.brm <- brm(delirium ~ 1 + treatment,
              data = df,
              family = bernoulli(link = "logit"),
              prior = vague_priors,
@@ -2777,8 +3036,8 @@ rt <- (0.12*exp(0.27))/(0.12*(exp(0.27) - 1) + 1)
 se_very_skeptical <- sqrt((1/60) + (1/440) + (1/76) + (1/424))
 ## 0.1856227
 
-very_skeptical_priors <- brms::prior(normal(0.27, 0.1856227), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+very_skeptical_priors <- brms::prior(normal(0.27, 0.1856227), coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
   
 very_skeptical.brm <- update(vague.brm, prior = very_skeptical_priors)
 
@@ -2797,8 +3056,8 @@ rt <- (0.12*exp(0.18))/(0.12*(exp(0.18) - 1) + 1)
 se_skeptical <- sqrt((1/30) + (1/220) + (1/35) + (1/215))
 ## 0.2666484
 
-skeptical_priors <- brms::prior(normal(0.18, 0.2666484), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+skeptical_priors <- brms::prior(normal(0.18, 0.2666484), coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
   
 skeptical.brm <- update(vague.brm, prior = skeptical_priors)
 
@@ -2810,8 +3069,8 @@ skeptical_benefit <- benefit_fn(skeptical.brm)
 # neutral prior is defined so that 0.95 of the probability mass ranges from an odds ratio between 0.5 and 2.0. 
 # As done in https://ccforum.biomedcentral.com/articles/10.1186/s13054-022-04120-y#Sec12
 se_neutral <- 0.355
-neutral_priors <- brms::prior(normal(0, 0.355), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+neutral_priors <- brms::prior(normal(0, 0.355), coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
   
 neutral.brm <- update(vague.brm, prior = neutral_priors)
 
@@ -2831,8 +3090,8 @@ se_optimistic <- sqrt((1/30) + (1/220) + (1/25) + (1/225))
 
 ## [1] 0.2869203
 
-optimistic_priors <- brms::prior(normal(-0.18, 0.2869203), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+optimistic_priors <- brms::prior(normal(-0.18, 0.2869203), coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
   
 optimistic.brm <- update(vague.brm, prior = optimistic_priors)
 optimistic_draws <- draws_fn(optimistic.brm)
@@ -2849,8 +3108,8 @@ rt <- (0.12*exp(-0.27))/(0.12*(exp(-0.27) - 1) + 1)
 se_very_optimistic <- sqrt((1/60) + (1/440) + (1/47) + (1/453))
 ## [1] 0.2059696
 
-very_optimistic_priors <- brms::prior(normal(-0.27, 0.2059696), coef = "groupdexmedetomidine") +
-                brms::prior(normal(0,1), class = b)
+very_optimistic_priors <- brms::prior(normal(-0.27, 0.2059696), coef = "treatmentdexmedetomidine") +
+                brms::prior(normal(0,1), class = Intercept)
   
 very_optimistic.brm <- update(vague.brm, prior = very_optimistic_priors)
 
@@ -2997,7 +3256,7 @@ forest.data <- rbind(vague_forest_draws, very_skeptical_forest_draws, skeptical_
   mutate(subgroup = factor(subgroup, levels = c("Vague", "Very skeptical", "Skeptical", "Neutral", "Optimistic", 
                                 "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)")))
 
-forest <- ggplot(aes(exp(b_groupdexmedetomidine), 
+forest <- ggplot(aes(exp(b_treatmentdexmedetomidine), 
            y = fct_relevel(subgroup, rev)), 
        data = forest.data) +
   geom_vline(xintercept = 1, color = "black", 
@@ -3005,7 +3264,7 @@ forest <- ggplot(aes(exp(b_groupdexmedetomidine),
   stat_slab(aes(fill = after_stat(x < 1)), slab_colour = "black") +
   geom_pointintervalh(aes(xmin = exp(.lower), 
                           xmax = exp(.upper), 
-                          x = exp(b_groupdexmedetomidine)),
+                          x = exp(b_treatmentdexmedetomidine)),
                       data = draws_df, 
                       col = "black", alpha = 1, position = position_nudge(y = -0.1)) +
   stat_slab(aes(xdist = exp(distributional::dist_normal(mean = decade_posterior_mean, sd = decade_posterior_sd)),
@@ -3066,46 +3325,32 @@ layout <- c(
 reference_priors + ma_priors + prior_details + forest  + posteriors + plot_layout(design = layout)
 
 ```
-
 :::
 
 ## ARR table
 
-Below I provide direct probability statements for the DECADE trial's results given each priors I specified above. I consider absolute risk reductions (ARRs) of up to 8% or more and absolute risk increases (ARIs) of up to 8% or more. All ARRs in @tbl-arr below use the control group rate for delirium incidence from the DECADE trial (12%). So, an ARR of 8% would be a reduction from 12% in the control group to 4% in the dexmedetomidine group, and an ARI of 8% would be a increase from 12% in the control group to 20% in the dexmedetomidine group.
+Below I provide direct probability statements for the DECADE trial's results given each priors I specified above. I consider absolute risk reductions (ARRs) of up to 8% or more and absolute risk increases (ARIs) of up to 8% or more. 
+
+I have chosen this range of risk changes in order to cover a wide variety of plausible effects (-8% to +8%). This gives clinicians the option to consider whether dexmedetomidine may yield a small benefit/harm (2%) or a very large benefit/harm (8%), based on which prior their personal beliefs align with.
+
+All ARRs in @tbl-arr below use `avg_comparisons()` function from the `marginaleffects` package to obtain risk differences as the measure of effect.
 
 ```{r}
 #| label: tbl-arr
 #| tbl-cap: Explanations for priors for DECADE and the corresponding probabilities of changes in absolute risk of delirium.
 
-# First we need to calculate the ARRs
-# To do this we need to logORs that are required for each ARR
-# Let's start with the likelihood of a 8% decrease in delirium incidence
-Rc_decade <- 0.12
-
-arr_8_Rt <- Rc_decade - 0.08
-arr_8_or <- (arr_8_Rt*(Rc_decade - 1))/(Rc_decade*(arr_8_Rt - 1))
-arr_4_Rt <- Rc_decade - 0.04
-arr_4_or <- (arr_4_Rt*(Rc_decade - 1))/(Rc_decade*(arr_4_Rt - 1))
-arr_2_Rt <- Rc_decade - 0.02
-arr_2_or <- (arr_2_Rt*(Rc_decade - 1))/(Rc_decade*(arr_2_Rt - 1))
-ari_2_Rt <- Rc_decade + 0.02
-ari_2_or <- (ari_2_Rt*(Rc_decade - 1))/(Rc_decade*(ari_2_Rt - 1))
-ari_4_Rt <- Rc_decade + 0.04
-ari_4_or <- (ari_4_Rt*(Rc_decade - 1))/(Rc_decade*(ari_4_Rt - 1))
-ari_8_Rt <- Rc_decade + 0.08
-ari_8_or <- (ari_8_Rt*(Rc_decade - 1))/(Rc_decade*(ari_8_Rt - 1))
-
 probs_fn <- function(brm) {
       brm %>% 
-      tidy_draws() %>% 
-      summarise(arr_8 = 100*mean(b_groupdexmedetomidine < log(arr_8_or)),
-            arr_4 = 100*mean(b_groupdexmedetomidine < log(arr_4_or)),
-            arr_2 = 100*mean(b_groupdexmedetomidine < log(arr_2_or)),
-            arr_below_0 = 100*mean(b_groupdexmedetomidine < log(1)),
-            arr_above_0 = 100*mean(b_groupdexmedetomidine > log(1)),
-            ari_2 = 100*mean(b_groupdexmedetomidine > log(ari_2_or)),
-            ari_4 = 100*mean(b_groupdexmedetomidine > log(ari_4_or)),
-            ari_8 = 100*mean(b_groupdexmedetomidine > log(ari_8_or)))
+       avg_comparisons() %>%
+       posterior_draws() %>%
+       summarise(arr_8 = 100*mean(draw < -0.08),
+            arr_4 = 100*mean(draw < -0.04),
+            arr_2 = 100*mean(draw < -0.02),
+            arr_below_0 = 100*mean(draw < 0),
+            arr_above_0 = 100*mean(draw > 0),
+            ari_2 = 100*mean(draw > 0.02),
+            ari_4 = 100*mean(draw > 0.04),
+            ari_8 = 100*mean(draw > 0.08))
 }
 
 probs <- rbind(probs_fn(vague.brm), probs_fn(very_skeptical.brm), probs_fn(skeptical.brm),
@@ -3186,7 +3431,6 @@ I consider four density functions: meta-analysis including DECADE, meta-analysis
 The x-axis is common to the upper and lower graphs so one is able to read off the probability of any odds ratio for any of the four curves. @fig-ecdfs shows the results. The grey region denotes the ROPE ($log(OR) = ± 0.18$).
 
 ::: panel-tabset
-
 ## All studies
 
 ```{r}
@@ -3438,16 +3682,210 @@ ecdfs + ma_curves + plot_layout(design = layout)
 ```
 :::
 
+## Average treatment effect estimation
+
+To this point, we have been using odds ratios (from logistic regression) in various fancy ways to generate other helpful statistics (probabilities of harm, benefit, etc.).
+
+But odds ratios are not infallible. Firstly, there is the issue of noncollapsibility.
+
+As [Sander Greenland explains](https://www.jclinepi.com/article/S0895-4356(21)00182-7/fulltext):
+
+> "Noncollapsibility is a noncausal phenomenon in which a measurement on a group does not equal a designated average of the same measurement over its constituents, as illustrated by how group odds are not simple averages of individual odds when the odds vary across individuals"
+
+Blogs by [Cameron Patrick](https://cameronpatrick.com/post/2023/07/logit-rd-rr/#fnref6) and [Solomun Kurz](https://solomonkurz.netlify.app/blog/2023-04-24-causal-inference-with-logistic-regression/#fnref:9) provide excellent overviews of non-collapsiblity and obtaining non-odds ratio estimates from logistic regression. See also [Frank Harrell's comments](https://www.fharrell.com/post/marg/) for what is the best example of non-collapsbility that I can find.
+
+Basically, consider an RCT looking at dexmedetomidine vs. placebo for delirium prevention. We can obtain a crude **marginal odds ratio** from an unadjusted logistic regression model, with delirium as the dependent variable. If we were to adjust the logistic regression for sex, we would obtain **conditional odds ratios** for men and women, respectively. The issue here is that our overall marginal odds ratio is not the weighted average of our conditional odds ratios. As [Harrell shows in an example](https://www.fharrell.com/post/marg/), you can have conditional odds ratios of 9 for both men and women, but the pooled (overall) marginal odds ratio including both men and women is 5.44 - which is clearly not the weighted average of the two conditional ORs of 9. This is non-collapsibility.
+
+On this, Harrell says:
+
+> "The marginal OR depends on the distribution of the sex variable in the sample, and does not transport to populations with a different sex ratio than the trial enrollment achieved. It is conditional (adjusted) ORs that generalize to other populations. These calculations illustrate that the sex-conditional OR equals the marginal OR only if the distribution is altered so that the conditioning doesn't matter (e.g., all the males or all the females are excluded). But what is the exact interpretation of the original marginal OR of 5.44 since it involves hidden conditioning on a 1:1 sex ratio in our example? A definition for this example is that 5.44 is the unconditional OR only when there are equal numbers of males and females because that's how the sample was constituted. But what is the interpretation when one wants to apply the RCT results to individual patients? It would seem to apply only to those rare situations where the patient is being counseled but for some reason we don't know the patient's sex. The marginal estimate needs the physician to conceptualize the clinical population (or at least the sex ratio) from which the patient came since it does not want to take into account the patient's actual sex. To say this another way, the sample-averaged OR of 5.44 does not apply to males, does not apply to females, and can conceivably only apply to a patient whose sex the physician refuses to know and for which their probability of being female is exactly 0.5. Even then the fact that the treatment OR is the same for both males and females makes the use of the sample averaged value highly questionable."
+
+For our purposes, the noncollapsbility of ORs means that our *marginal OR from DECADE is not a weighted average of possible hidden subpopulations.* Another effect of non-collapsiblity is that the *effect estimate will change when adjusting for a variable that is not a confounder*, while it does not change for collapsible measures (e.g., relative risk).
+
+So, we want conditional ORs from RCTs wherever possible, that condition on important risk factors. Conditioning on any risk factor is better than conditioning on none. Of course, as we don't have individual participant data from DECADE, we can't do this.
+
+Another issue is that odds ratios are not a true measure of the 'average treatment effect (ATE)' (a term used in the causal inference literature). Some have also referred to the ATE as the "difference in probabilities", "discrete differences," or "discrete change." The ATE is a population-level summary of the effect of an intervention. A true measure of the ATE is, for example, the risk difference. This is why I will calculate risk differences; as [Cameron Patrick puts it](https://cameronpatrick.com/post/2023/07/logit-rd-rr/#fnref6):
+
+> "Risk differences (the difference in probability attributable to a particular treatment) and relative risks (the ratio of probabilities due to a particular treatment) avoid both the interpretability and noncollapsibility problems of odds ratios."
+
+However, [Harrell](https://www.fharrell.com/post/marg/) does caution us that:
+
+> "Absolute risk difference does not fix the problem \[of non-collapsibility\] in general, as sicker patients will show more absolute treatment benefit."
+
+### ATE table
+
+So, let's get into estimating the ATE, in the form of the risk differences obtained from an ANOVA-type logistic regression model. For this we will use the `avg_comparisons()` function in the `marginaleffects` package, which calculates estimates from brms (and frequentist) models.
+
+```{r}
+#| label: tbl-ate
+#| tbl-cap: Average treatment effect of dexmedetomidine in the DECADE trial
+library(marginaleffects)
+
+arr_fn <- function(brm, name) {
+  data.frame(marginaleffects::avg_comparisons(brm)) %>%
+    dplyr::select(3:5) %>%
+    mutate(across(everything(), ~ . * 100)) %>%
+    mutate(across(where(is.numeric), ~sprintf("%.1f", .))) %>%
+    mutate(Model = name,
+           confint = paste0(conf.low, ", ", conf.high)) %>%
+    dplyr::select(4, 1, 5)
+}
+
+dat_ma <- rbind(arr_fn(ma_full_weight.brm, "MA (100% weight)"), arr_fn(ma_half_weight.brm, "MA (50% weight)"), arr_fn(ma_quarter_weight.brm, "MA (25% weight)"),
+                arr_fn(ma_full_weight.brm_low_rob, "MA (100% weight)"), arr_fn(ma_half_weight.brm_low_rob, "MA (50% weight)"), 
+                arr_fn(ma_quarter_weight.brm_low_rob, "MA (25% weight)"))
+                
+dat_reference <- rbind(arr_fn(vague.brm, "Vague"), arr_fn(very_skeptical.brm, "Very sceptical"), arr_fn(skeptical.brm, "Sceptical"),
+             arr_fn(neutral.brm, "Neutral"), arr_fn(optimistic.brm, "Optimistic"), arr_fn(very_optimistic.brm, "Very optimistic"))
+
+dat_all <- rbind(dat_reference, dat_ma) %>%
+  mutate(Group = c("Reference priors", "Reference priors","Reference priors","Reference priors",
+                               "Reference priors","Reference priors",
+                               "Meta-analysis priors (all studies)", "Meta-analysis priors (all studies)", 
+                               "Meta-analysis priors (all studies)",
+                               "Meta-analysis priors (excluding high RoB)", "Meta-analysis priors (excluding high RoB)", 
+                               "Meta-analysis priors (excluding high RoB)"))
+
+dat_all %>%
+  rename("Risk difference % (DEX - placebo)" = estimate,
+         "95% CrI" = confint) %>%
+  gt(rowname_col = "Model", groupname_col = "Group") %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "grey"),
+      cell_text(weight = "bold")
+      ),
+    locations = cells_row_groups()) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "white"),
+      cell_text(weight = "bold")
+      ),
+    locations = cells_column_labels())
+```
+
+### ATE ECDFs
+
+Finally, let's look at the risk difference on an ECDF scale for all of our priors. This will be a somewhat busy graph.
+
+In @fig-ecdfs-arr, the posterior probability of continuous risk differences from the DECADE trial is shown for each prior. The posterior density of the draws are also shown, for each respective prior.
+
+```{r}
+#| label: fig-ecdfs-arr
+#| fig-width: 12
+#| fig-height: 10
+#| fig-cap: |
+#|   Empirical cumulative distribution function (ECDF) plots for the ARR.
+
+probs_fn <- function(brm, prior) {
+      brm %>% 
+       avg_comparisons() %>%
+       posterior_draws() %>%
+       dplyr::select(draw) %>%
+      mutate(prior = prior,
+             draw = draw * 100)
+}
+
+probs <- rbind(probs_fn(vague.brm, "Vague"), probs_fn(very_skeptical.brm, "Very sceptical"), probs_fn(skeptical.brm, "Sceptical"),
+               probs_fn(neutral.brm, "Neutral"), probs_fn(optimistic.brm, "Optimistic"), probs_fn(very_optimistic.brm, "Very optimistic"),
+               probs_fn(ma_full_weight.brm, "MA (100% weight)"), probs_fn(ma_half_weight.brm, "MA (50% weight)"), probs_fn(ma_quarter_weight.brm, "MA (25% weight)"),
+               probs_fn(ma_full_weight.brm_low_rob, "MA (100% weight), excluding high RoB"), probs_fn(ma_half_weight.brm_low_rob, "MA (50% weight), excluding high RoB"), 
+               probs_fn(ma_quarter_weight.brm_low_rob, "MA (25% weight), excluding high RoB")) 
+
+ecdfs <- ggplot(aes(x = draw, color = prior), data = probs) +
+  stat_ecdf(geom = "step") +
+  scale_y_continuous(name = "Probability that mean risk difference < x", limits = c(0, 1), breaks = seq(0, 1, 0.1), labels = percent_format(),
+                     sec.axis = sec_axis(~ 1 - ., name = "Probability that mean risk difference > x",
+                                          breaks = seq(0, 1, 0.1), labels = percent_format())) +
+  geom_vline(xintercept = 0) +
+  scale_x_continuous(breaks = c(-7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10, 12.5), expand = c(0, 0)) +
+  coord_cartesian(xlim = c(-7.5, 12.5)) +
+  theme_light() +
+  theme(
+    legend.position = c(0.95, 0.6),  
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "lightgrey", color = "black")) +
+  xlab(label = "Absolute risk reduction (%)") +
+  scale_color_manual(values = RColorBrewer::brewer.pal(12, "Set3"),
+                     breaks = c("Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)", 
+                                "MA (100% weight), excluding high RoB", "MA (50% weight), excluding high RoB", "MA (25% weight), excluding high RoB"),
+                     labels = c("Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)", 
+                                "MA (100% weight), excluding high RoB", "MA (50% weight), excluding high RoB", "MA (25% weight), excluding high RoB"),
+                     name = "Prior") +
+  theme(axis.line = element_blank(),           # remove axis lines
+        axis.text.x = element_blank(),         # remove x-axis tick labels
+        axis.ticks.x = element_blank()) +
+  xlab(NULL) +
+  guides(color = guide_legend(override.aes = list(linetype = "solid", shape = NA)))
+
+ma_curves <- ggplot(aes(x = draw, color = prior), data = probs) +
+  stat_slab(fill = NA) +
+  scale_x_continuous(breaks = c(-7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10, 12.5), expand = c(0, 0)) +
+  coord_cartesian(xlim = c(-7.5, 12.5)) +
+  ggdist::scale_thickness_shared() +
+  geom_vline(xintercept=0) +
+  annotate("text", x = -5, y = 0.9, label = "Favours\ndexmedetomidine", size = 4) +
+  annotate("text", x = 5, y = 0.9, label = "Favours\ncontrol",  size = 4) +
+  theme_light() +
+  theme(
+    axis.text.y = element_blank(),
+    legend.position = "none") +
+   xlab(label = "Risk difference (%)") +
+  scale_color_manual(values = RColorBrewer::brewer.pal(12, "Set3"),
+                     breaks = c("Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)", 
+                                "MA (100% weight), excluding high RoB", "MA (50% weight), excluding high RoB", "MA (25% weight), excluding high RoB"),
+                     labels = c("Vague", "Very skeptical", 
+                                "Skeptical", "Neutral", "Optimistic", 
+                                "Very optimistic", "MA (100% weight)", "MA (50% weight)", "MA (25% weight)", 
+                                "MA (100% weight), excluding high RoB", "MA (50% weight), excluding high RoB", "MA (25% weight), excluding high RoB"),
+                     name = "Prior") +
+  ylab(NULL)
+
+layout <- c(
+  area(t = 0, l = 0, b = 12, r = 30),
+  area(t = 13, l = 0, b = 20, r = 30))
+
+ecdfs + ma_curves + plot_layout(design = layout)
+
+
+
+```
+
 # Metaregression
 
-Now let's consider how the effect of dexmedetomidine may across populations vary due to various factors. This is called metaregression, which is just the meta-analysis equivalent of multivariable linear regression. By glancing at it, it just looks like subgroup group, which is correct. *Subgroup analysis is just a form of metaregression with a categorical moderator.*
+Now let's consider how the effect of dexmedetomidine may across populations vary due to various factors. This is called metaregression, which is just the meta-analysis equivalent of multivariable linear regression. By glancing at it, it just looks like subgroup analysis, which is correct. *Subgroup analysis is just a form of metaregression with a categorical moderator.*
 
-Below I've used similar priors as I used for our primary analysis. Although, here we are interested in the `moderator` coefficient, rather than the intercept coefficient. So my prior for the coefficient of interest is $N(0, 0.82)$ while for the intercept coefficient it is $N(0, 1)$. I retain the same ${\tau}$ priors as in our primary analysis: $Cauchy(0, 0.5)$.
+Below I've used similar priors as I used for our primary analysis. Although, here we are interested in the `moderator` coefficient, rather than the intercept coefficient. So my prior for the coefficient of interest is $N(0, 0.82)$ while for the intercept coefficient it is $N(0, 1)$. Given it's the treatment coefficient we're interested in, we're using the $Normal(0,0.82)$ prior for the same reason as described above for the primary analysis. I also retain the same ${\tau}$ priors as in our primary analysis: $Cauchy(0, 0.5)$. In summary, our priors are:
+
+$$Intercept \sim Normal(0, 1)$$
+$$\tau \sim HalfCauchy(0.5)$$
+$$\beta_\text{treatment} \sim Normal(0, 0.82)$$
+
+And the code for priors using `brms` is:
 
 ``` r
 priors_metareg <- brms::prior(normal(0, 1), class = b, coef = "Intercept") +
                   brms::prior(cauchy(0,0.5), class = sd) +
                   brms::prior(normal(0,0.82), class = b)
+```
+
+The results in the following code for the model (where 'covariate' is the moderator variable):
+
+``` r
+m.brm_covariate <- brm(yi | se(sei) ~ 0 + Intercept + covariate + (1 | author1),
+                       data = IVdat_del, 
+                       prior = priors_metareg,
+                       iter = 4000,
+                       backend = "cmdstanr", 
+                       cores = parallel::detectCores(),
+                       chains = 4,
+                       seed = 123))
 ```
 
 I also provide a comparison between categorical moderators where there are two levels (dose, age). You can do this with three or more moderators but you need to compare things 1 vs. 1, so the number of comparisons starts rising with more levels per moderator. But this is something we can do if we want to. For the 'difference' plots, it is calculating the difference between: $\text{top plot} - \text{bottom plot}$.
@@ -4014,7 +4452,15 @@ age_studies + age_forest + age_estimates + dose_studies + dose_forest + dose_est
 
 # Secondary outcomes
 
-Now for the secondary outcomes. For these I used the same priors as in our primary analysis.
+Now for the secondary outcomes. For these I used the same priors as in our primary analysis for binary outcomes.
+
+For the continuous secondary outcomes, slightly different priors were required. Our NNHM remains the same, but now we need to specify a meaningful prior for a mean difference rather than an odds ratio. I have chosen a normal prior with mean 0 and standard deviation 1. That is, 95% of the density is around -2 to 2. This again is a weakly informative prior - we expect that dexmedetomidine may affect outcomes such as length of hospital stay, but it is unlikely that the magnitude of effect is greater than a 2 day difference. I will use the same prior for the coefficient $\beta$ in metaregression of continuous secondary outcomes. I will use the same priors for $\tau$. So, for our continuous secondary outcomes, the formulas for our NNHM are:
+
+$$\hat{\theta} \sim Normal(\theta, \sigma^2)$$
+$$\theta \sim Normal(\mu, \tau^2)$$
+$$\mu \sim Normal(0,1)$$
+$$\tau \sim HalfCauchy(0.5)$$
+$$\beta \sim Normal(0,1)$$
 
 ## Forest plot
 
@@ -4023,11 +4469,7 @@ For the 'Mean (SD)' columns for the continuous outcomes, I used the unweighted g
 ```{r}
 #| label: fig-secondary-plots
 #| fig-width: 12
-#| fig-height: 8
-#| results: 'hide'
-#| message: FALSE
-#| warning: FALSE
-#| errors: FALSE
+#| fig-height: 7
 #| fig-cap: |
 #|   Forest plot of the secondary outcomes.
 
@@ -4161,8 +4603,8 @@ p_forest_secondary_dichot <- ggplot(aes(exp(b_Intercept),
                       size = 6) +
   scale_x_log10(breaks = c(0.1, 0.25, 0.5, 1, 2, 4, 7), expand = c(0, 0)) +           
   coord_cartesian(xlim=c(0.1, 7), ylim=c(1,6)) +
-  annotate("text", x = 0.35, y =5.5, label = "Greater with\ncontrol") +
-  annotate("text", x = 3, y = 5.5,  label = "Greater with\ndexmedetomidine") +
+  annotate("text", x = 0.35, y =5.5, label = "Favours\ndexmedetomidine") +
+  annotate("text", x = 3, y = 5.5,  label = "Favours\ncontrol") +
   theme_light() +
   theme(axis.text.y = element_blank()) +
   labs(x="Odds ratio (log scale)") +
@@ -4296,8 +4738,8 @@ p_forest_secondary_cont <- ggplot(aes(b_Intercept,
                       size = 6) +
   scale_x_continuous(expand = c(0, 0)) +           
   coord_cartesian(xlim=c(-6, 6), ylim=c(1,6)) +
-  annotate("text", x = -4, y =5.5, label = "Greater with\ncontrol") +
-  annotate("text", x = 4, y = 5.5,  label = "Greater with\ndexmedetomidine") +
+  annotate("text", x = -3, y =5.5, label = "Favours\ndexmedetomidine") +
+  annotate("text", x = 3, y = 5.5,  label = "Favours\ncontrol") +
   theme_light() +
   theme(axis.text.y = element_blank()) +
   labs(x="Mean difference") +
@@ -4361,117 +4803,133 @@ Let's also look at the probability of dexmedetomidine causing various levels of 
 Rc_overall_bradycardia <- median(IVdat_bradycardia$control_bradycardia_rate)
 
 
-nnt_50_Rt_overall_bradycardia <- Rc_overall_bradycardia + (100/50)/100
-nnt_50_or_overall_bradycardia <- (nnt_50_Rt_overall_bradycardia*(Rc_overall_bradycardia - 1))/(Rc_overall_bradycardia*(nnt_50_Rt_overall_bradycardia - 1))
+ari_2_Rt_overall_bradycardia <- Rc_overall_bradycardia + 0.02
+ari_2_or_overall_bradycardia <- (ari_2_Rt_overall_bradycardia*(Rc_overall_bradycardia - 1))/(Rc_overall_bradycardia*(ari_2_Rt_overall_bradycardia - 1))
 
-nnt_25_Rt_overall_bradycardia <- Rc_overall_bradycardia + (100/25)/100
-nnt_25_or_overall_bradycardia <- (nnt_25_Rt_overall_bradycardia*(Rc_overall_bradycardia - 1))/(Rc_overall_bradycardia*(nnt_25_Rt_overall_bradycardia - 1))
+ari_4_Rt_overall_bradycardia <- Rc_overall_bradycardia + 0.04
+ari_4_or_overall_bradycardia <- (ari_4_Rt_overall_bradycardia*(Rc_overall_bradycardia - 1))/(Rc_overall_bradycardia*(ari_4_Rt_overall_bradycardia - 1))
 
-nnt_10_Rt_overall_bradycardia <- Rc_overall_bradycardia + (100/10)/100
-nnt_10_or_overall_bradycardia <- (nnt_10_Rt_overall_bradycardia*(Rc_overall_bradycardia - 1))/(Rc_overall_bradycardia*(nnt_10_Rt_overall_bradycardia - 1))
+ari_6_Rt_overall_bradycardia <- Rc_overall_bradycardia + 0.06
+ari_6_or_overall_bradycardia <- (ari_6_Rt_overall_bradycardia*(Rc_overall_bradycardia - 1))/(Rc_overall_bradycardia*(ari_6_Rt_overall_bradycardia - 1))
+
+ari_8_Rt_overall_bradycardia <- Rc_overall_bradycardia + 0.08
+ari_8_or_overall_bradycardia <- (ari_8_Rt_overall_bradycardia*(Rc_overall_bradycardia - 1))/(Rc_overall_bradycardia*(ari_8_Rt_overall_bradycardia - 1))
 
 probs_overall_bradycardia = 
   m.brm_bradycardia |> 
   tidy_draws() |> 
   summarise(any_benefit_overall_bradycardia = 100*mean(b_Intercept > log(1)),
-            rrr_nnt_50_overall_bradycardia = 100*mean(b_Intercept > log(nnt_50_or_overall_bradycardia)),
-            rrr_nnt_25_overall_bradycardia = 100*mean(b_Intercept > log(nnt_25_or_overall_bradycardia)),
-            rrr_nnt_10_overall_bradycardia = 100*mean(b_Intercept > log(nnt_10_or_overall_bradycardia)))
+            rrr_ari_2_overall_bradycardia = 100*mean(b_Intercept > log(ari_2_or_overall_bradycardia)),
+            rrr_ari_4_overall_bradycardia = 100*mean(b_Intercept > log(ari_4_or_overall_bradycardia)),
+            rrr_ari_6_overall_bradycardia = 100*mean(b_Intercept > log(ari_6_or_overall_bradycardia)),
+            rrr_ari_8_overall_bradycardia = 100*mean(b_Intercept > log(ari_8_or_overall_bradycardia)))
 
 # First, age below 60
 Rc_age_below_60_bradycardia <- median(IVdat_bradycardia[IVdat_bradycardia$age_60=="No" &
                                                !is.na(IVdat_bradycardia$age_60),]$control_bradycardia_rate)
-nnt_50_Rt_age_below_60_bradycardia <- Rc_age_below_60_bradycardia + (100/50)/100
-nnt_50_or_age_below_60_bradycardia <- (nnt_50_Rt_age_below_60_bradycardia*(Rc_age_below_60_bradycardia - 1))/(Rc_age_below_60_bradycardia*(nnt_50_Rt_age_below_60_bradycardia - 1))
+ari_2_Rt_age_below_60_bradycardia <- Rc_age_below_60_bradycardia + 0.02
+ari_2_or_age_below_60_bradycardia <- (ari_2_Rt_age_below_60_bradycardia*(Rc_age_below_60_bradycardia - 1))/(Rc_age_below_60_bradycardia*(ari_2_Rt_age_below_60_bradycardia - 1))
 
-nnt_25_Rt_age_below_60_bradycardia <- Rc_age_below_60_bradycardia + (100/25)/100
-nnt_25_or_age_below_60_bradycardia <- (nnt_25_Rt_age_below_60_bradycardia*(Rc_age_below_60_bradycardia - 1))/(Rc_age_below_60_bradycardia*(nnt_25_Rt_age_below_60_bradycardia - 1))
+ari_4_Rt_age_below_60_bradycardia <- Rc_age_below_60_bradycardia + 0.04
+ari_4_or_age_below_60_bradycardia <- (ari_4_Rt_age_below_60_bradycardia*(Rc_age_below_60_bradycardia - 1))/(Rc_age_below_60_bradycardia*(ari_4_Rt_age_below_60_bradycardia - 1))
 
-nnt_10_Rt_age_below_60_bradycardia <- Rc_age_below_60_bradycardia + (100/10)/100
-nnt_10_or_age_below_60_bradycardia <- (nnt_10_Rt_age_below_60_bradycardia*(Rc_age_below_60_bradycardia - 1))/(Rc_age_below_60_bradycardia*(nnt_10_Rt_age_below_60_bradycardia - 1))
+ari_6_Rt_age_below_60_bradycardia <- Rc_age_below_60_bradycardia + 0.06
+ari_6_or_age_below_60_bradycardia <- (ari_6_Rt_age_below_60_bradycardia*(Rc_age_below_60_bradycardia - 1))/(Rc_age_below_60_bradycardia*(ari_6_Rt_age_below_60_bradycardia - 1))
+
+ari_8_Rt_age_below_60_bradycardia <- Rc_age_below_60_bradycardia + 0.08
+ari_8_or_age_below_60_bradycardia <- (ari_8_Rt_age_below_60_bradycardia*(Rc_age_below_60_bradycardia - 1))/(Rc_age_below_60_bradycardia*(ari_8_Rt_age_below_60_bradycardia - 1))
 
 probs_age_below_60_bradycardia = 
   spread_draws(m.brm_bradycardia_age, b_age_60No) |> 
   summarise(any_benefit_age_below_60_bradycardia = 100*mean(b_age_60No > log(1)),
-            rrr_nnt_50_age_below_60_bradycardia = 100*mean(b_age_60No > log(nnt_50_or_age_below_60_bradycardia)),
-            rrr_nnt_25_age_below_60_bradycardia = 100*mean(b_age_60No > log(nnt_25_or_age_below_60_bradycardia)),
-            rrr_nnt_10_age_below_60_bradycardia = 100*mean(b_age_60No > log(nnt_10_or_age_below_60_bradycardia)),
-            )
+            rrr_ari_2_age_below_60_bradycardia = 100*mean(b_age_60No > log(ari_2_or_age_below_60_bradycardia)),
+            rrr_ari_4_age_below_60_bradycardia = 100*mean(b_age_60No > log(ari_4_or_age_below_60_bradycardia)),
+            rrr_ari_6_age_below_60_bradycardia = 100*mean(b_age_60No > log(ari_6_or_age_below_60_bradycardia)),
+            rrr_ari_8_age_below_60_bradycardia = 100*mean(b_age_60No > log(ari_8_or_age_below_60_bradycardia)))
 
 # Then age above 60
 Rc_age_above_60_bradycardia <- median(IVdat_bradycardia[IVdat_bradycardia$age_60=="Yes" &
                                                !is.na(IVdat_bradycardia$age_60),]$control_bradycardia_rate)
-nnt_50_Rt_age_above_60_bradycardia <- Rc_age_above_60_bradycardia + (100/50)/100
-nnt_50_or_age_above_60_bradycardia <- (nnt_50_Rt_age_above_60_bradycardia*(Rc_age_above_60_bradycardia - 1))/(Rc_age_above_60_bradycardia*(nnt_50_Rt_age_above_60_bradycardia - 1))
+ari_2_Rt_age_above_60_bradycardia <- Rc_age_above_60_bradycardia + 0.02
+ari_2_or_age_above_60_bradycardia <- (ari_2_Rt_age_above_60_bradycardia*(Rc_age_above_60_bradycardia - 1))/(Rc_age_above_60_bradycardia*(ari_2_Rt_age_above_60_bradycardia - 1))
 
-nnt_25_Rt_age_above_60_bradycardia <- Rc_age_above_60_bradycardia + (100/25)/100
-nnt_25_or_age_above_60_bradycardia <- (nnt_25_Rt_age_above_60_bradycardia*(Rc_age_above_60_bradycardia - 1))/(Rc_age_above_60_bradycardia*(nnt_25_Rt_age_above_60_bradycardia - 1))
+ari_4_Rt_age_above_60_bradycardia <- Rc_age_above_60_bradycardia + 0.04
+ari_4_or_age_above_60_bradycardia <- (ari_4_Rt_age_above_60_bradycardia*(Rc_age_above_60_bradycardia - 1))/(Rc_age_above_60_bradycardia*(ari_4_Rt_age_above_60_bradycardia - 1))
 
-nnt_10_Rt_age_above_60_bradycardia <- Rc_age_above_60_bradycardia + (100/10)/100
-nnt_10_or_age_above_60_bradycardia <- (nnt_10_Rt_age_above_60_bradycardia*(Rc_age_above_60_bradycardia - 1))/(Rc_age_above_60_bradycardia*(nnt_10_Rt_age_above_60_bradycardia - 1))
+ari_6_Rt_age_above_60_bradycardia <- Rc_age_above_60_bradycardia + 0.06
+ari_6_or_age_above_60_bradycardia <- (ari_6_Rt_age_above_60_bradycardia*(Rc_age_above_60_bradycardia - 1))/(Rc_age_above_60_bradycardia*(ari_6_Rt_age_above_60_bradycardia - 1))
+
+ari_8_Rt_age_above_60_bradycardia <- Rc_age_above_60_bradycardia + 0.08
+ari_8_or_age_above_60_bradycardia <- (ari_8_Rt_age_above_60_bradycardia*(Rc_age_above_60_bradycardia - 1))/(Rc_age_above_60_bradycardia*(ari_8_Rt_age_above_60_bradycardia - 1))
 
 probs_age_above_60_bradycardia = 
   spread_draws(m.brm_bradycardia_age, b_age_60Yes) |> 
   summarise(any_benefit_age_above_60_bradycardia = 100*mean(b_age_60Yes > log(1)),
-            rrr_nnt_50_age_above_60_bradycardia = 100*mean(b_age_60Yes > log(nnt_50_or_age_above_60_bradycardia)),
-            rrr_nnt_25_age_above_60_bradycardia = 100*mean(b_age_60Yes > log(nnt_25_or_age_above_60_bradycardia)),
-            rrr_nnt_10_age_above_60_bradycardia = 100*mean(b_age_60Yes > log(nnt_10_or_age_above_60_bradycardia)),
-            )
+            rrr_ari_2_age_above_60_bradycardia = 100*mean(b_age_60Yes > log(ari_2_or_age_above_60_bradycardia)),
+            rrr_ari_4_age_above_60_bradycardia = 100*mean(b_age_60Yes > log(ari_4_or_age_above_60_bradycardia)),
+            rrr_ari_6_age_above_60_bradycardia = 100*mean(b_age_60Yes > log(ari_6_or_age_above_60_bradycardia)),
+            rrr_ari_8_age_above_60_bradycardia = 100*mean(b_age_60Yes > log(ari_8_or_age_above_60_bradycardia)))
 
 # High dose
 Rc_high_dose_bradycardia <- median(IVdat_bradycardia[IVdat_bradycardia$dex_dose=="High" &
                                                !is.na(IVdat_bradycardia$dex_dose),]$control_bradycardia_rate)
 
-nnt_50_Rt_high_dose_bradycardia <- Rc_high_dose_bradycardia + (100/50)/100
-nnt_50_or_high_dose_bradycardia <- (nnt_50_Rt_high_dose_bradycardia*(Rc_high_dose_bradycardia - 1))/(Rc_high_dose_bradycardia*(nnt_50_Rt_high_dose_bradycardia - 1))
+ari_2_Rt_high_dose_bradycardia <- Rc_high_dose_bradycardia + 0.02
+ari_2_or_high_dose_bradycardia <- (ari_2_Rt_high_dose_bradycardia*(Rc_high_dose_bradycardia - 1))/(Rc_high_dose_bradycardia*(ari_2_Rt_high_dose_bradycardia - 1))
 
-nnt_25_Rt_high_dose_bradycardia <- Rc_high_dose_bradycardia + (100/25)/100
-nnt_25_or_high_dose_bradycardia <- (nnt_25_Rt_high_dose_bradycardia*(Rc_high_dose_bradycardia - 1))/(Rc_high_dose_bradycardia*(nnt_25_Rt_high_dose_bradycardia - 1))
+ari_4_Rt_high_dose_bradycardia <- Rc_high_dose_bradycardia + 0.04
+ari_4_or_high_dose_bradycardia <- (ari_4_Rt_high_dose_bradycardia*(Rc_high_dose_bradycardia - 1))/(Rc_high_dose_bradycardia*(ari_4_Rt_high_dose_bradycardia - 1))
 
-nnt_10_Rt_high_dose_bradycardia <- Rc_high_dose_bradycardia + (100/10)/100
-nnt_10_or_high_dose_bradycardia <- (nnt_10_Rt_high_dose_bradycardia*(Rc_high_dose_bradycardia - 1))/(Rc_high_dose_bradycardia*(nnt_10_Rt_high_dose_bradycardia - 1))
+ari_6_Rt_high_dose_bradycardia <- Rc_high_dose_bradycardia + 0.06
+ari_6_or_high_dose_bradycardia <- (ari_6_Rt_high_dose_bradycardia*(Rc_high_dose_bradycardia - 1))/(Rc_high_dose_bradycardia*(ari_6_Rt_high_dose_bradycardia - 1))
+
+ari_8_Rt_high_dose_bradycardia <- Rc_high_dose_bradycardia + 0.08
+ari_8_or_high_dose_bradycardia <- (ari_8_Rt_high_dose_bradycardia*(Rc_high_dose_bradycardia - 1))/(Rc_high_dose_bradycardia*(ari_8_Rt_high_dose_bradycardia - 1))
 
 probs_high_dose_bradycardia = 
   spread_draws(m.brm_bradycardia_dose, b_dex_doseHigh) |> 
   summarise(any_benefit_high_dose_bradycardia = 100*mean(b_dex_doseHigh > log(1)),
-            rrr_nnt_50_high_dose_bradycardia = 100*mean(b_dex_doseHigh > log(nnt_50_or_high_dose_bradycardia)),
-            rrr_nnt_25_high_dose_bradycardia = 100*mean(b_dex_doseHigh > log(nnt_25_or_high_dose_bradycardia)),
-            rrr_nnt_10_high_dose_bradycardia = 100*mean(b_dex_doseHigh > log(nnt_10_or_high_dose_bradycardia)),
-            )
+            rrr_ari_2_high_dose_bradycardia = 100*mean(b_dex_doseHigh > log(ari_2_or_high_dose_bradycardia)),
+            rrr_ari_4_high_dose_bradycardia = 100*mean(b_dex_doseHigh > log(ari_4_or_high_dose_bradycardia)),
+            rrr_ari_6_high_dose_bradycardia = 100*mean(b_dex_doseHigh > log(ari_6_or_high_dose_bradycardia)),
+            rrr_ari_8_high_dose_bradycardia = 100*mean(b_dex_doseHigh > log(ari_8_or_high_dose_bradycardia)))
 
 # Low dose
 Rc_low_dose_bradycardia <- median(IVdat_bradycardia[IVdat_bradycardia$dex_dose=="Low" &
                                                !is.na(IVdat_bradycardia$dex_dose),]$control_bradycardia_rate)
-nnt_50_Rt_low_dose_bradycardia <- Rc_low_dose_bradycardia + (100/50)/100
-nnt_50_or_low_dose_bradycardia <- (nnt_50_Rt_low_dose_bradycardia*(Rc_low_dose_bradycardia - 1))/(Rc_low_dose_bradycardia*(nnt_50_Rt_low_dose_bradycardia - 1))
+ari_2_Rt_low_dose_bradycardia <- Rc_low_dose_bradycardia + 0.02
+ari_2_or_low_dose_bradycardia <- (ari_2_Rt_low_dose_bradycardia*(Rc_low_dose_bradycardia - 1))/(Rc_low_dose_bradycardia*(ari_2_Rt_low_dose_bradycardia - 1))
 
-nnt_25_Rt_low_dose_bradycardia <- Rc_low_dose_bradycardia + (100/25)/100
-nnt_25_or_low_dose_bradycardia <- (nnt_25_Rt_low_dose_bradycardia*(Rc_low_dose_bradycardia - 1))/(Rc_low_dose_bradycardia*(nnt_25_Rt_low_dose_bradycardia - 1))
+ari_4_Rt_low_dose_bradycardia <- Rc_low_dose_bradycardia + 0.04
+ari_4_or_low_dose_bradycardia <- (ari_4_Rt_low_dose_bradycardia*(Rc_low_dose_bradycardia - 1))/(Rc_low_dose_bradycardia*(ari_4_Rt_low_dose_bradycardia - 1))
 
-nnt_10_Rt_low_dose_bradycardia <- Rc_low_dose_bradycardia + (100/10)/100
-nnt_10_or_low_dose_bradycardia <- (nnt_10_Rt_low_dose_bradycardia*(Rc_low_dose_bradycardia - 1))/(Rc_low_dose_bradycardia*(nnt_10_Rt_low_dose_bradycardia - 1))
+ari_6_Rt_low_dose_bradycardia <- Rc_low_dose_bradycardia + 0.06
+ari_6_or_low_dose_bradycardia <- (ari_6_Rt_low_dose_bradycardia*(Rc_low_dose_bradycardia - 1))/(Rc_low_dose_bradycardia*(ari_6_Rt_low_dose_bradycardia - 1))
+
+ari_8_Rt_low_dose_bradycardia <- Rc_low_dose_bradycardia + 0.08
+ari_8_or_low_dose_bradycardia <- (ari_8_Rt_low_dose_bradycardia*(Rc_low_dose_bradycardia - 1))/(Rc_low_dose_bradycardia*(ari_8_Rt_low_dose_bradycardia - 1))
 
 probs_low_dose_bradycardia = 
   spread_draws(m.brm_bradycardia_dose, b_dex_doseLow) |> 
   summarise(any_benefit_low_dose_bradycardia = 100*mean(b_dex_doseLow > log(1)),
-            rrr_nnt_50_low_dose_bradycardia = 100*mean(b_dex_doseLow > log(nnt_50_or_low_dose_bradycardia)),
-            rrr_nnt_25_low_dose_bradycardia = 100*mean(b_dex_doseLow > log(nnt_25_or_low_dose_bradycardia)),
-            rrr_nnt_10_low_dose_bradycardia = 100*mean(b_dex_doseLow > log(nnt_10_or_low_dose_bradycardia)),
-            )
+            rrr_ari_2_low_dose_bradycardia = 100*mean(b_dex_doseLow > log(ari_2_or_low_dose_bradycardia)),
+            rrr_ari_4_low_dose_bradycardia = 100*mean(b_dex_doseLow > log(ari_4_or_low_dose_bradycardia)),
+            rrr_ari_6_low_dose_bradycardia = 100*mean(b_dex_doseLow > log(ari_6_or_low_dose_bradycardia)),
+            rrr_ari_8_low_dose_bradycardia = 100*mean(b_dex_doseLow > log(ari_8_or_low_dose_bradycardia)))
 
 prob_tbl1 <- as.data.frame(rbind("Overall" = c("Overall",  Rc_overall_bradycardia, probs_overall_bradycardia),
      "Age below 60" = c("Age below 60",  Rc_age_below_60_bradycardia, probs_age_below_60_bradycardia),
      "Age above 60" = c("Age above 60",  Rc_age_above_60_bradycardia,probs_age_above_60_bradycardia),
      "High dose" = c("High dose",  Rc_high_dose_bradycardia, probs_high_dose_bradycardia),
      "Low dose" = c("Low dose",  Rc_low_dose_bradycardia, probs_low_dose_bradycardia))) %>%
-  mutate_at(vars(2:6), as.numeric) %>%
+  mutate_at(vars(2:7), as.numeric) %>%
   rename(`Subgroup` = V1,
           `median_rate` = V2) %>%
   mutate(`median_rate` = `median_rate` * 100) %>%
-  mutate_at(vars(2:6), ~sprintf("%.1f", .))
+  mutate_at(vars(2:7), ~sprintf("%.1f", .))
 
-colnames(prob_tbl1) <- c("Subgroup", "Median control group rate (%)", "Probability of any harm (%)", "Probability of NNH = 50 (%)",
-                        "Probability of NNH = 25 (%)", "Probability of NNH = 10 (%)")
+colnames(prob_tbl1) <- c("Subgroup", "Median control group rate (%)", "Probability of any harm (%)", "Probability of ARI = 2 (%)",
+                        "Probability of ARI = 4 (%)", "Probability of ARI = 6 (%)", "Probability of ARI = 8 (%)")
 
 # First - hypotension
  # Begin with overall
@@ -4479,104 +4937,119 @@ colnames(prob_tbl1) <- c("Subgroup", "Median control group rate (%)", "Probabili
 Rc_overall_hypotension <- median(IVdat_hypotension$control_hypotension_rate)
 
 
-nnt_50_Rt_overall_hypotension <- Rc_overall_hypotension + (100/50)/100
-nnt_50_or_overall_hypotension <- (nnt_50_Rt_overall_hypotension*(Rc_overall_hypotension - 1))/(Rc_overall_hypotension*(nnt_50_Rt_overall_hypotension - 1))
+ari_2_Rt_overall_hypotension <- Rc_overall_hypotension + 0.02
+ari_2_or_overall_hypotension <- (ari_2_Rt_overall_hypotension*(Rc_overall_hypotension - 1))/(Rc_overall_hypotension*(ari_2_Rt_overall_hypotension - 1))
 
-nnt_25_Rt_overall_hypotension <- Rc_overall_hypotension + (100/25)/100
-nnt_25_or_overall_hypotension <- (nnt_25_Rt_overall_hypotension*(Rc_overall_hypotension - 1))/(Rc_overall_hypotension*(nnt_25_Rt_overall_hypotension - 1))
+ari_4_Rt_overall_hypotension <- Rc_overall_hypotension + 0.04
+ari_4_or_overall_hypotension <- (ari_4_Rt_overall_hypotension*(Rc_overall_hypotension - 1))/(Rc_overall_hypotension*(ari_4_Rt_overall_hypotension - 1))
 
-nnt_10_Rt_overall_hypotension <- Rc_overall_hypotension + (100/10)/100
-nnt_10_or_overall_hypotension <- (nnt_10_Rt_overall_hypotension*(Rc_overall_hypotension - 1))/(Rc_overall_hypotension*(nnt_10_Rt_overall_hypotension - 1))
+ari_6_Rt_overall_hypotension <- Rc_overall_hypotension + 0.06
+ari_6_or_overall_hypotension <- (ari_6_Rt_overall_hypotension*(Rc_overall_hypotension - 1))/(Rc_overall_hypotension*(ari_6_Rt_overall_hypotension - 1))
+
+ari_8_Rt_overall_hypotension <- Rc_overall_hypotension + 0.08
+ari_8_or_overall_hypotension <- (ari_8_Rt_overall_hypotension*(Rc_overall_hypotension - 1))/(Rc_overall_hypotension*(ari_8_Rt_overall_hypotension - 1))
 
 probs_overall_hypotension = 
   m.brm_hypotension |> 
   tidy_draws() |> 
   summarise(any_benefit_overall_hypotension = 100*mean(b_Intercept > log(1)),
-            rrr_nnt_50_overall_hypotension = 100*mean(b_Intercept > log(nnt_50_or_overall_hypotension)),
-            rrr_nnt_25_overall_hypotension = 100*mean(b_Intercept > log(nnt_25_or_overall_hypotension)),
-            rrr_nnt_10_overall_hypotension = 100*mean(b_Intercept > log(nnt_10_or_overall_hypotension)),
-            )
+            rrr_ari_2_overall_hypotension = 100*mean(b_Intercept > log(ari_2_or_overall_hypotension)),
+            rrr_ari_4_overall_hypotension = 100*mean(b_Intercept > log(ari_4_or_overall_hypotension)),
+            rrr_ari_6_overall_hypotension = 100*mean(b_Intercept > log(ari_6_or_overall_hypotension)),
+            rrr_ari_8_overall_hypotension = 100*mean(b_Intercept > log(ari_8_or_overall_hypotension)))
 
 # First, age below 60
 Rc_age_below_60_hypotension <- median(IVdat_hypotension[IVdat_hypotension$age_60=="No" &
                                                !is.na(IVdat_hypotension$age_60),]$control_hypotension_rate)
-nnt_50_Rt_age_below_60_hypotension <- Rc_age_below_60_hypotension + (100/50)/100
-nnt_50_or_age_below_60_hypotension <- (nnt_50_Rt_age_below_60_hypotension*(Rc_age_below_60_hypotension - 1))/(Rc_age_below_60_hypotension*(nnt_50_Rt_age_below_60_hypotension - 1))
+ari_2_Rt_age_below_60_hypotension <- Rc_age_below_60_hypotension + 0.02
+ari_2_or_age_below_60_hypotension <- (ari_2_Rt_age_below_60_hypotension*(Rc_age_below_60_hypotension - 1))/(Rc_age_below_60_hypotension*(ari_2_Rt_age_below_60_hypotension - 1))
 
-nnt_25_Rt_age_below_60_hypotension <- Rc_age_below_60_hypotension + (100/25)/100
-nnt_25_or_age_below_60_hypotension <- (nnt_25_Rt_age_below_60_hypotension*(Rc_age_below_60_hypotension - 1))/(Rc_age_below_60_hypotension*(nnt_25_Rt_age_below_60_hypotension - 1))
+ari_4_Rt_age_below_60_hypotension <- Rc_age_below_60_hypotension + 0.04
+ari_4_or_age_below_60_hypotension <- (ari_4_Rt_age_below_60_hypotension*(Rc_age_below_60_hypotension - 1))/(Rc_age_below_60_hypotension*(ari_4_Rt_age_below_60_hypotension - 1))
 
-nnt_10_Rt_age_below_60_hypotension <- Rc_age_below_60_hypotension + (100/10)/100
-nnt_10_or_age_below_60_hypotension <- (nnt_10_Rt_age_below_60_hypotension*(Rc_age_below_60_hypotension - 1))/(Rc_age_below_60_hypotension*(nnt_10_Rt_age_below_60_hypotension - 1))
+ari_6_Rt_age_below_60_hypotension <- Rc_age_below_60_hypotension + 0.06
+ari_6_or_age_below_60_hypotension <- (ari_6_Rt_age_below_60_hypotension*(Rc_age_below_60_hypotension - 1))/(Rc_age_below_60_hypotension*(ari_6_Rt_age_below_60_hypotension - 1))
+
+ari_8_Rt_age_below_60_hypotension <- Rc_age_below_60_hypotension + 0.08
+ari_8_or_age_below_60_hypotension <- (ari_8_Rt_age_below_60_hypotension*(Rc_age_below_60_hypotension - 1))/(Rc_age_below_60_hypotension*(ari_8_Rt_age_below_60_hypotension - 1))
 
 probs_age_below_60_hypotension = 
   spread_draws(m.brm_hypotension_age, b_age_60No) |> 
   summarise(any_benefit_age_below_60_hypotension = 100*mean(b_age_60No > log(1)),
-            rrr_nnt_50_age_below_60_hypotension = 100*mean(b_age_60No > log(nnt_50_or_age_below_60_hypotension)),
-            rrr_nnt_25_age_below_60_hypotension = 100*mean(b_age_60No > log(nnt_25_or_age_below_60_hypotension)),
-            rrr_nnt_10_age_below_60_hypotension = 100*mean(b_age_60No > log(nnt_10_or_age_below_60_hypotension)),
-            )
+            rrr_ari_2_age_below_60_hypotension = 100*mean(b_age_60No > log(ari_2_or_age_below_60_hypotension)),
+            rrr_ari_4_age_below_60_hypotension = 100*mean(b_age_60No > log(ari_4_or_age_below_60_hypotension)),
+            rrr_ari_6_age_below_60_hypotension = 100*mean(b_age_60No > log(ari_6_or_age_below_60_hypotension)),
+            rrr_ari_8_age_below_60_hypotension = 100*mean(b_age_60No > log(ari_8_or_age_below_60_hypotension)))
 
 # Then age above 60
 Rc_age_above_60_hypotension <- median(IVdat_hypotension[IVdat_hypotension$age_60=="Yes" &
                                                !is.na(IVdat_hypotension$age_60),]$control_hypotension_rate)
-nnt_50_Rt_age_above_60_hypotension <- Rc_age_above_60_hypotension + (100/50)/100
-nnt_50_or_age_above_60_hypotension <- (nnt_50_Rt_age_above_60_hypotension*(Rc_age_above_60_hypotension - 1))/(Rc_age_above_60_hypotension*(nnt_50_Rt_age_above_60_hypotension - 1))
+ari_2_Rt_age_above_60_hypotension <- Rc_age_above_60_hypotension + 0.02
+ari_2_or_age_above_60_hypotension <- (ari_2_Rt_age_above_60_hypotension*(Rc_age_above_60_hypotension - 1))/(Rc_age_above_60_hypotension*(ari_2_Rt_age_above_60_hypotension - 1))
 
-nnt_25_Rt_age_above_60_hypotension <- Rc_age_above_60_hypotension + (100/25)/100
-nnt_25_or_age_above_60_hypotension <- (nnt_25_Rt_age_above_60_hypotension*(Rc_age_above_60_hypotension - 1))/(Rc_age_above_60_hypotension*(nnt_25_Rt_age_above_60_hypotension - 1))
+ari_4_Rt_age_above_60_hypotension <- Rc_age_above_60_hypotension + 0.04
+ari_4_or_age_above_60_hypotension <- (ari_4_Rt_age_above_60_hypotension*(Rc_age_above_60_hypotension - 1))/(Rc_age_above_60_hypotension*(ari_4_Rt_age_above_60_hypotension - 1))
 
-nnt_10_Rt_age_above_60_hypotension <- Rc_age_above_60_hypotension + (100/10)/100
-nnt_10_or_age_above_60_hypotension <- (nnt_10_Rt_age_above_60_hypotension*(Rc_age_above_60_hypotension - 1))/(Rc_age_above_60_hypotension*(nnt_10_Rt_age_above_60_hypotension - 1))
+ari_6_Rt_age_above_60_hypotension <- Rc_age_above_60_hypotension + 0.06
+ari_6_or_age_above_60_hypotension <- (ari_6_Rt_age_above_60_hypotension*(Rc_age_above_60_hypotension - 1))/(Rc_age_above_60_hypotension*(ari_6_Rt_age_above_60_hypotension - 1))
+
+ari_8_Rt_age_above_60_hypotension <- Rc_age_above_60_hypotension + 0.08
+ari_8_or_age_above_60_hypotension <- (ari_8_Rt_age_above_60_hypotension*(Rc_age_above_60_hypotension - 1))/(Rc_age_above_60_hypotension*(ari_8_Rt_age_above_60_hypotension - 1))
 
 probs_age_above_60_hypotension = 
   spread_draws(m.brm_hypotension_age, b_age_60Yes) |> 
   summarise(any_benefit_age_above_60_hypotension = 100*mean(b_age_60Yes > log(1)),
-            rrr_nnt_50_age_above_60_hypotension = 100*mean(b_age_60Yes > log(nnt_50_or_age_above_60_hypotension)),
-            rrr_nnt_25_age_above_60_hypotension = 100*mean(b_age_60Yes > log(nnt_25_or_age_above_60_hypotension)),
-            rrr_nnt_10_age_above_60_hypotension = 100*mean(b_age_60Yes > log(nnt_10_or_age_above_60_hypotension)),
-            )
+            rrr_ari_2_age_above_60_hypotension = 100*mean(b_age_60Yes > log(ari_2_or_age_above_60_hypotension)),
+            rrr_ari_4_age_above_60_hypotension = 100*mean(b_age_60Yes > log(ari_4_or_age_above_60_hypotension)),
+            rrr_ari_6_age_above_60_hypotension = 100*mean(b_age_60Yes > log(ari_6_or_age_above_60_hypotension)),
+            rrr_ari_8_age_above_60_hypotension = 100*mean(b_age_60Yes > log(ari_8_or_age_above_60_hypotension)))
 
 # High dose
 Rc_high_dose_hypotension <- median(IVdat_hypotension[IVdat_hypotension$dex_dose=="High" &
                                                !is.na(IVdat_hypotension$dex_dose),]$control_hypotension_rate)
 
-nnt_50_Rt_high_dose_hypotension <- Rc_high_dose_hypotension + (100/50)/100
-nnt_50_or_high_dose_hypotension <- (nnt_50_Rt_high_dose_hypotension*(Rc_high_dose_hypotension - 1))/(Rc_high_dose_hypotension*(nnt_50_Rt_high_dose_hypotension - 1))
+ari_2_Rt_high_dose_hypotension <- Rc_high_dose_hypotension + 0.02
+ari_2_or_high_dose_hypotension <- (ari_2_Rt_high_dose_hypotension*(Rc_high_dose_hypotension - 1))/(Rc_high_dose_hypotension*(ari_2_Rt_high_dose_hypotension - 1))
 
-nnt_25_Rt_high_dose_hypotension <- Rc_high_dose_hypotension + (100/25)/100
-nnt_25_or_high_dose_hypotension <- (nnt_25_Rt_high_dose_hypotension*(Rc_high_dose_hypotension - 1))/(Rc_high_dose_hypotension*(nnt_25_Rt_high_dose_hypotension - 1))
+ari_4_Rt_high_dose_hypotension <- Rc_high_dose_hypotension + 0.04
+ari_4_or_high_dose_hypotension <- (ari_4_Rt_high_dose_hypotension*(Rc_high_dose_hypotension - 1))/(Rc_high_dose_hypotension*(ari_4_Rt_high_dose_hypotension - 1))
 
-nnt_10_Rt_high_dose_hypotension <- Rc_high_dose_hypotension + (100/10)/100
-nnt_10_or_high_dose_hypotension <- (nnt_10_Rt_high_dose_hypotension*(Rc_high_dose_hypotension - 1))/(Rc_high_dose_hypotension*(nnt_10_Rt_high_dose_hypotension - 1))
+ari_6_Rt_high_dose_hypotension <- Rc_high_dose_hypotension + 0.06
+ari_6_or_high_dose_hypotension <- (ari_6_Rt_high_dose_hypotension*(Rc_high_dose_hypotension - 1))/(Rc_high_dose_hypotension*(ari_6_Rt_high_dose_hypotension - 1))
+
+ari_8_Rt_high_dose_hypotension <- Rc_high_dose_hypotension + 0.08
+ari_8_or_high_dose_hypotension <- (ari_8_Rt_high_dose_hypotension*(Rc_high_dose_hypotension - 1))/(Rc_high_dose_hypotension*(ari_8_Rt_high_dose_hypotension - 1))
 
 probs_high_dose_hypotension = 
   spread_draws(m.brm_hypotension_dose, b_dex_doseHigh) |> 
   summarise(any_benefit_high_dose_hypotension = 100*mean(b_dex_doseHigh > log(1)),
-            rrr_nnt_50_high_dose_hypotension = 100*mean(b_dex_doseHigh > log(nnt_50_or_high_dose_hypotension)),
-            rrr_nnt_25_high_dose_hypotension = 100*mean(b_dex_doseHigh > log(nnt_25_or_high_dose_hypotension)),
-            rrr_nnt_10_high_dose_hypotension = 100*mean(b_dex_doseHigh > log(nnt_10_or_high_dose_hypotension)),
-            )
+            rrr_ari_2_high_dose_hypotension = 100*mean(b_dex_doseHigh > log(ari_2_or_high_dose_hypotension)),
+            rrr_ari_4_high_dose_hypotension = 100*mean(b_dex_doseHigh > log(ari_4_or_high_dose_hypotension)),
+            rrr_ari_6_high_dose_hypotension = 100*mean(b_dex_doseHigh > log(ari_6_or_high_dose_hypotension)),
+           rrr_ari_8_high_dose_hypotension = 100*mean(b_dex_doseHigh > log(ari_8_or_high_dose_hypotension)))
 
 # Low dose
 Rc_low_dose_hypotension <- median(IVdat_hypotension[IVdat_hypotension$dex_dose=="Low" &
                                                !is.na(IVdat_hypotension$dex_dose),]$control_hypotension_rate)
-nnt_50_Rt_low_dose_hypotension <- Rc_low_dose_hypotension + (100/50)/100
-nnt_50_or_low_dose_hypotension <- (nnt_50_Rt_low_dose_hypotension*(Rc_low_dose_hypotension - 1))/(Rc_low_dose_hypotension*(nnt_50_Rt_low_dose_hypotension - 1))
+ari_2_Rt_low_dose_hypotension <- Rc_low_dose_hypotension + 0.02
+ari_2_or_low_dose_hypotension <- (ari_2_Rt_low_dose_hypotension*(Rc_low_dose_hypotension - 1))/(Rc_low_dose_hypotension*(ari_2_Rt_low_dose_hypotension - 1))
 
-nnt_25_Rt_low_dose_hypotension <- Rc_low_dose_hypotension + (100/25)/100
-nnt_25_or_low_dose_hypotension <- (nnt_25_Rt_low_dose_hypotension*(Rc_low_dose_hypotension - 1))/(Rc_low_dose_hypotension*(nnt_25_Rt_low_dose_hypotension - 1))
+ari_4_Rt_low_dose_hypotension <- Rc_low_dose_hypotension + 0.04
+ari_4_or_low_dose_hypotension <- (ari_4_Rt_low_dose_hypotension*(Rc_low_dose_hypotension - 1))/(Rc_low_dose_hypotension*(ari_4_Rt_low_dose_hypotension - 1))
 
-nnt_10_Rt_low_dose_hypotension <- Rc_low_dose_hypotension + (100/10)/100
-nnt_10_or_low_dose_hypotension <- (nnt_10_Rt_low_dose_hypotension*(Rc_low_dose_hypotension - 1))/(Rc_low_dose_hypotension*(nnt_10_Rt_low_dose_hypotension - 1))
+ari_6_Rt_low_dose_hypotension <- Rc_low_dose_hypotension + 0.06
+ari_6_or_low_dose_hypotension <- (ari_6_Rt_low_dose_hypotension*(Rc_low_dose_hypotension - 1))/(Rc_low_dose_hypotension*(ari_6_Rt_low_dose_hypotension - 1))
+
+ari_8_Rt_low_dose_hypotension <- Rc_low_dose_hypotension + 0.08
+ari_8_or_low_dose_hypotension <- (ari_8_Rt_low_dose_hypotension*(Rc_low_dose_hypotension - 1))/(Rc_low_dose_hypotension*(ari_8_Rt_low_dose_hypotension - 1))
 
 probs_low_dose_hypotension = 
   spread_draws(m.brm_hypotension_dose, b_dex_doseLow) |> 
   summarise(any_benefit_low_dose_hypotension = 100*mean(b_dex_doseLow > log(1)),
-            rrr_nnt_50_low_dose_hypotension = 100*mean(b_dex_doseLow > log(nnt_50_or_low_dose_hypotension)),
-            rrr_nnt_25_low_dose_hypotension = 100*mean(b_dex_doseLow > log(nnt_25_or_low_dose_hypotension)),
-            rrr_nnt_10_low_dose_hypotension = 100*mean(b_dex_doseLow > log(nnt_10_or_low_dose_hypotension)),
-            )
+            rrr_ari_2_low_dose_hypotension = 100*mean(b_dex_doseLow > log(ari_2_or_low_dose_hypotension)),
+            rrr_ari_4_low_dose_hypotension = 100*mean(b_dex_doseLow > log(ari_4_or_low_dose_hypotension)),
+            rrr_ari_6_low_dose_hypotension = 100*mean(b_dex_doseLow > log(ari_6_or_low_dose_hypotension)),
+            rrr_ari_8_low_dose_hypotension = 100*mean(b_dex_doseLow > log(ari_8_or_low_dose_hypotension)))
 
 prob_tbl2 <- as.data.frame(rbind("Overall" = c("Overall",  Rc_overall_hypotension, probs_overall_hypotension),
      "Age below 60" = c("Age below 60",  Rc_age_below_60_hypotension, probs_age_below_60_hypotension),
@@ -4584,14 +5057,14 @@ prob_tbl2 <- as.data.frame(rbind("Overall" = c("Overall",  Rc_overall_hypotensio
      "High dose" = c("High dose",  Rc_high_dose_hypotension, probs_high_dose_hypotension),
      "Low dose" = c("Low dose", Rc_low_dose_hypotension, probs_low_dose_hypotension)
      )) %>%
-  mutate_at(vars(2:6), as.numeric) %>%
+  mutate_at(vars(2:7), as.numeric) %>%
   rename(`Subgroup` = V1,
          `median_rate` = V2) %>%
   mutate(`median_rate` = `median_rate` * 100) %>%
-  mutate_at(vars(2:6), ~sprintf("%.1f", .))
+  mutate_at(vars(2:7), ~sprintf("%.1f", .))
 
-colnames(prob_tbl2) <- c("Subgroup", "Median control group rate (%)", "Probability of any harm (%)", "Probability of NNH = 50 (%)",
-                        "Probability of NNH = 25 (%)", "Probability of NNH = 10 (%)")
+colnames(prob_tbl2) <- c("Subgroup", "Median control group rate (%)", "Probability of any harm (%)", "Probability of ARI = 2 (%)",
+                        "Probability of ARI = 4 (%)", "Probability of ARI = 6 (%)", "Probability of ARI = 8 (%)")
 
 # combine the two data frames using rbind()
 prob_tbl <- rbind(prob_tbl1, prob_tbl2)
@@ -4634,118 +5107,134 @@ Many of the values for mortality are `NA`. This is because the mortality rate is
 # First, calculate the median delirium rate in control group
 Rc_overall_arrhythmia <- median(IVdat_arrhythmia$control_arrhythmia_rate)
 
-nnt_50_Rt_overall_arrhythmia <- Rc_overall_arrhythmia - (100/50)/100
-nnt_50_or_overall_arrhythmia <- (nnt_50_Rt_overall_arrhythmia*(Rc_overall_arrhythmia - 1))/(Rc_overall_arrhythmia*(nnt_50_Rt_overall_arrhythmia - 1))
+arr_2_Rt_overall_arrhythmia <- Rc_overall_arrhythmia - 0.02
+arr_2_or_overall_arrhythmia <- (arr_2_Rt_overall_arrhythmia*(Rc_overall_arrhythmia - 1))/(Rc_overall_arrhythmia*(arr_2_Rt_overall_arrhythmia - 1))
 
-nnt_25_Rt_overall_arrhythmia <- Rc_overall_arrhythmia - (100/25)/100
-nnt_25_or_overall_arrhythmia <- (nnt_25_Rt_overall_arrhythmia*(Rc_overall_arrhythmia - 1))/(Rc_overall_arrhythmia*(nnt_25_Rt_overall_arrhythmia - 1))
+arr_4_Rt_overall_arrhythmia <- Rc_overall_arrhythmia - 0.04
+arr_4_or_overall_arrhythmia <- (arr_4_Rt_overall_arrhythmia*(Rc_overall_arrhythmia - 1))/(Rc_overall_arrhythmia*(arr_4_Rt_overall_arrhythmia - 1))
 
-nnt_10_Rt_overall_arrhythmia <- Rc_overall_arrhythmia - (100/10)/100
-nnt_10_or_overall_arrhythmia <- (nnt_10_Rt_overall_arrhythmia*(Rc_overall_arrhythmia - 1))/(Rc_overall_arrhythmia*(nnt_10_Rt_overall_arrhythmia - 1))
+arr_6_Rt_overall_arrhythmia <- Rc_overall_arrhythmia - 0.06
+arr_6_or_overall_arrhythmia <- (arr_6_Rt_overall_arrhythmia*(Rc_overall_arrhythmia - 1))/(Rc_overall_arrhythmia*(arr_6_Rt_overall_arrhythmia - 1))
+
+arr_8_Rt_overall_arrhythmia <- Rc_overall_arrhythmia - 0.08
+arr_8_or_overall_arrhythmia <- (arr_8_Rt_overall_arrhythmia*(Rc_overall_arrhythmia - 1))/(Rc_overall_arrhythmia*(arr_8_Rt_overall_arrhythmia - 1))
+
 
 probs_overall_arrhythmia = 
   m.brm_arrhythmia |> 
   tidy_draws() |> 
   summarise(any_benefit_overall_arrhythmia = 100*mean(b_Intercept < log(1)),
-            rrr_nnt_50_overall_arrhythmia = 100*mean(b_Intercept < log(nnt_50_or_overall_arrhythmia)),
-            rrr_nnt_25_overall_arrhythmia = 100*mean(b_Intercept < log(nnt_25_or_overall_arrhythmia)),
-            rrr_nnt_10_overall_arrhythmia = 100*mean(b_Intercept < log(nnt_10_or_overall_arrhythmia)),
-            )
+            rrr_arr_2_overall_arrhythmia = 100*mean(b_Intercept < log(arr_2_or_overall_arrhythmia)),
+            rrr_arr_4_overall_arrhythmia = 100*mean(b_Intercept < log(arr_4_or_overall_arrhythmia)),
+            rrr_arr_6_overall_arrhythmia = 100*mean(b_Intercept < log(arr_6_or_overall_arrhythmia)),
+            rrr_arr_8_overall_arrhythmia = 100*mean(b_Intercept < log(arr_8_or_overall_arrhythmia)))
 
 # First, age below 60
 Rc_age_below_60_arrhythmia <- median(IVdat_arrhythmia[IVdat_arrhythmia$age_60=="No" &
                                                !is.na(IVdat_arrhythmia$age_60),]$control_arrhythmia_rate)
-nnt_50_Rt_age_below_60_arrhythmia <- Rc_age_below_60_arrhythmia - (100/50)/100
-nnt_50_or_age_below_60_arrhythmia <- (nnt_50_Rt_age_below_60_arrhythmia*(Rc_age_below_60_arrhythmia - 1))/(Rc_age_below_60_arrhythmia*(nnt_50_Rt_age_below_60_arrhythmia - 1))
+arr_2_Rt_age_below_60_arrhythmia <- Rc_age_below_60_arrhythmia - 0.02
+arr_2_or_age_below_60_arrhythmia <- (arr_2_Rt_age_below_60_arrhythmia*(Rc_age_below_60_arrhythmia - 1))/(Rc_age_below_60_arrhythmia*(arr_2_Rt_age_below_60_arrhythmia - 1))
 
-nnt_25_Rt_age_below_60_arrhythmia <- Rc_age_below_60_arrhythmia - (100/25)/100
-nnt_25_or_age_below_60_arrhythmia <- (nnt_25_Rt_age_below_60_arrhythmia*(Rc_age_below_60_arrhythmia - 1))/(Rc_age_below_60_arrhythmia*(nnt_25_Rt_age_below_60_arrhythmia - 1))
+arr_4_Rt_age_below_60_arrhythmia <- Rc_age_below_60_arrhythmia - 0.04
+arr_4_or_age_below_60_arrhythmia <- (arr_4_Rt_age_below_60_arrhythmia*(Rc_age_below_60_arrhythmia - 1))/(Rc_age_below_60_arrhythmia*(arr_4_Rt_age_below_60_arrhythmia - 1))
 
-nnt_10_Rt_age_below_60_arrhythmia <- Rc_age_below_60_arrhythmia - (100/10)/100
-nnt_10_or_age_below_60_arrhythmia <- (nnt_10_Rt_age_below_60_arrhythmia*(Rc_age_below_60_arrhythmia - 1))/(Rc_age_below_60_arrhythmia*(nnt_10_Rt_age_below_60_arrhythmia - 1))
+arr_6_Rt_age_below_60_arrhythmia <- Rc_age_below_60_arrhythmia - 0.06
+arr_6_or_age_below_60_arrhythmia <- (arr_6_Rt_age_below_60_arrhythmia*(Rc_age_below_60_arrhythmia - 1))/(Rc_age_below_60_arrhythmia*(arr_6_Rt_age_below_60_arrhythmia - 1))
+
+arr_8_Rt_age_below_60_arrhythmia <- Rc_age_below_60_arrhythmia - 0.08
+arr_8_or_age_below_60_arrhythmia <- (arr_8_Rt_age_below_60_arrhythmia*(Rc_age_below_60_arrhythmia - 1))/(Rc_age_below_60_arrhythmia*(arr_8_Rt_age_below_60_arrhythmia - 1))
 
 probs_age_below_60_arrhythmia = 
   spread_draws(m.brm_arrhythmia_age, b_age_60No) |> 
   summarise(any_benefit_age_below_60_arrhythmia = 100*mean(b_age_60No < log(1)),
-            rrr_nnt_50_age_below_60_arrhythmia = 100*mean(b_age_60No < log(nnt_50_or_age_below_60_arrhythmia)),
-            rrr_nnt_25_age_below_60_arrhythmia = 100*mean(b_age_60No < log(nnt_25_or_age_below_60_arrhythmia)),
-            rrr_nnt_10_age_below_60_arrhythmia = 100*mean(b_age_60No < log(nnt_10_or_age_below_60_arrhythmia)),
-            )
+            rrr_arr_2_age_below_60_arrhythmia = 100*mean(b_age_60No < log(arr_2_or_age_below_60_arrhythmia)),
+            rrr_arr_4_age_below_60_arrhythmia = 100*mean(b_age_60No < log(arr_4_or_age_below_60_arrhythmia)),
+            rrr_arr_6_age_below_60_arrhythmia = 100*mean(b_age_60No < log(arr_6_or_age_below_60_arrhythmia)),
+            rrr_arr_8_age_below_60_arrhythmia = 100*mean(b_age_60No < log(arr_8_or_age_below_60_arrhythmia)))
 
 # Then age above 60
 Rc_age_above_60_arrhythmia <- median(IVdat_arrhythmia[IVdat_arrhythmia$age_60=="Yes" &
                                                !is.na(IVdat_arrhythmia$age_60),]$control_arrhythmia_rate)
-nnt_50_Rt_age_above_60_arrhythmia <- Rc_age_above_60_arrhythmia - (100/50)/100
-nnt_50_or_age_above_60_arrhythmia <- (nnt_50_Rt_age_above_60_arrhythmia*(Rc_age_above_60_arrhythmia - 1))/(Rc_age_above_60_arrhythmia*(nnt_50_Rt_age_above_60_arrhythmia - 1))
+arr_2_Rt_age_above_60_arrhythmia <- Rc_age_above_60_arrhythmia - 0.02
+arr_2_or_age_above_60_arrhythmia <- (arr_2_Rt_age_above_60_arrhythmia*(Rc_age_above_60_arrhythmia - 1))/(Rc_age_above_60_arrhythmia*(arr_2_Rt_age_above_60_arrhythmia - 1))
 
-nnt_25_Rt_age_above_60_arrhythmia <- Rc_age_above_60_arrhythmia - (100/25)/100
-nnt_25_or_age_above_60_arrhythmia <- (nnt_25_Rt_age_above_60_arrhythmia*(Rc_age_above_60_arrhythmia - 1))/(Rc_age_above_60_arrhythmia*(nnt_25_Rt_age_above_60_arrhythmia - 1))
+arr_4_Rt_age_above_60_arrhythmia <- Rc_age_above_60_arrhythmia - 0.04
+arr_4_or_age_above_60_arrhythmia <- (arr_4_Rt_age_above_60_arrhythmia*(Rc_age_above_60_arrhythmia - 1))/(Rc_age_above_60_arrhythmia*(arr_4_Rt_age_above_60_arrhythmia - 1))
 
-nnt_10_Rt_age_above_60_arrhythmia <- Rc_age_above_60_arrhythmia - (100/10)/100
-nnt_10_or_age_above_60_arrhythmia <- (nnt_10_Rt_age_above_60_arrhythmia*(Rc_age_above_60_arrhythmia - 1))/(Rc_age_above_60_arrhythmia*(nnt_10_Rt_age_above_60_arrhythmia - 1))
+arr_6_Rt_age_above_60_arrhythmia <- Rc_age_above_60_arrhythmia - 0.06
+arr_6_or_age_above_60_arrhythmia <- (arr_6_Rt_age_above_60_arrhythmia*(Rc_age_above_60_arrhythmia - 1))/(Rc_age_above_60_arrhythmia*(arr_6_Rt_age_above_60_arrhythmia - 1))
+
+arr_8_Rt_age_above_60_arrhythmia <- Rc_age_above_60_arrhythmia - 0.08
+arr_8_or_age_above_60_arrhythmia <- (arr_8_Rt_age_above_60_arrhythmia*(Rc_age_above_60_arrhythmia - 1))/(Rc_age_above_60_arrhythmia*(arr_8_Rt_age_above_60_arrhythmia - 1))
 
 probs_age_above_60_arrhythmia = 
   spread_draws(m.brm_arrhythmia_age, b_age_60Yes) |> 
   summarise(any_benefit_age_above_60_arrhythmia = 100*mean(b_age_60Yes < log(1)),
-            rrr_nnt_50_age_above_60_arrhythmia = 100*mean(b_age_60Yes < log(nnt_50_or_age_above_60_arrhythmia)),
-            rrr_nnt_25_age_above_60_arrhythmia = 100*mean(b_age_60Yes < log(nnt_25_or_age_above_60_arrhythmia)),
-            rrr_nnt_10_age_above_60_arrhythmia = 100*mean(b_age_60Yes < log(nnt_10_or_age_above_60_arrhythmia)),
-            )
+            rrr_arr_2_age_above_60_arrhythmia = 100*mean(b_age_60Yes < log(arr_2_or_age_above_60_arrhythmia)),
+            rrr_arr_4_age_above_60_arrhythmia = 100*mean(b_age_60Yes < log(arr_4_or_age_above_60_arrhythmia)),
+            rrr_arr_6_age_above_60_arrhythmia = 100*mean(b_age_60Yes < log(arr_6_or_age_above_60_arrhythmia)),
+            rrr_arr_8_age_above_60_arrhythmia = 100*mean(b_age_60Yes < log(arr_8_or_age_above_60_arrhythmia)))
 
 # High dose
 Rc_high_dose_arrhythmia <- median(IVdat_arrhythmia[IVdat_arrhythmia$dex_dose=="High" &
                                                !is.na(IVdat_arrhythmia$dex_dose),]$control_arrhythmia_rate)
 
-nnt_50_Rt_high_dose_arrhythmia <- Rc_high_dose_arrhythmia - (100/50)/100
-nnt_50_or_high_dose_arrhythmia <- (nnt_50_Rt_high_dose_arrhythmia*(Rc_high_dose_arrhythmia - 1))/(Rc_high_dose_arrhythmia*(nnt_50_Rt_high_dose_arrhythmia - 1))
+arr_2_Rt_high_dose_arrhythmia <- Rc_high_dose_arrhythmia - 0.02
+arr_2_or_high_dose_arrhythmia <- (arr_2_Rt_high_dose_arrhythmia*(Rc_high_dose_arrhythmia - 1))/(Rc_high_dose_arrhythmia*(arr_2_Rt_high_dose_arrhythmia - 1))
 
-nnt_25_Rt_high_dose_arrhythmia <- Rc_high_dose_arrhythmia - (100/25)/100
-nnt_25_or_high_dose_arrhythmia <- (nnt_25_Rt_high_dose_arrhythmia*(Rc_high_dose_arrhythmia - 1))/(Rc_high_dose_arrhythmia*(nnt_25_Rt_high_dose_arrhythmia - 1))
+arr_4_Rt_high_dose_arrhythmia <- Rc_high_dose_arrhythmia - 0.04
+arr_4_or_high_dose_arrhythmia <- (arr_4_Rt_high_dose_arrhythmia*(Rc_high_dose_arrhythmia - 1))/(Rc_high_dose_arrhythmia*(arr_4_Rt_high_dose_arrhythmia - 1))
 
-nnt_10_Rt_high_dose_arrhythmia <- Rc_high_dose_arrhythmia - (100/10)/100
-nnt_10_or_high_dose_arrhythmia <- (nnt_10_Rt_high_dose_arrhythmia*(Rc_high_dose_arrhythmia - 1))/(Rc_high_dose_arrhythmia*(nnt_10_Rt_high_dose_arrhythmia - 1))
+arr_6_Rt_high_dose_arrhythmia <- Rc_high_dose_arrhythmia - 0.06
+arr_6_or_high_dose_arrhythmia <- (arr_6_Rt_high_dose_arrhythmia*(Rc_high_dose_arrhythmia - 1))/(Rc_high_dose_arrhythmia*(arr_6_Rt_high_dose_arrhythmia - 1))
+
+arr_8_Rt_high_dose_arrhythmia <- Rc_high_dose_arrhythmia - 0.08
+arr_8_or_high_dose_arrhythmia <- (arr_8_Rt_high_dose_arrhythmia*(Rc_high_dose_arrhythmia - 1))/(Rc_high_dose_arrhythmia*(arr_8_Rt_high_dose_arrhythmia - 1))
 
 probs_high_dose_arrhythmia = 
   spread_draws(m.brm_arrhythmia_dose, b_dex_doseHigh) |> 
   summarise(any_benefit_high_dose_arrhythmia = 100*mean(b_dex_doseHigh < log(1)),
-            rrr_nnt_50_high_dose_arrhythmia = 100*mean(b_dex_doseHigh < log(nnt_50_or_high_dose_arrhythmia)),
-            rrr_nnt_25_high_dose_arrhythmia = 100*mean(b_dex_doseHigh < log(nnt_25_or_high_dose_arrhythmia)),
-            rrr_nnt_10_high_dose_arrhythmia = 100*mean(b_dex_doseHigh < log(nnt_10_or_high_dose_arrhythmia)),
-            )
+            rrr_arr_2_high_dose_arrhythmia = 100*mean(b_dex_doseHigh < log(arr_2_or_high_dose_arrhythmia)),
+            rrr_arr_4_high_dose_arrhythmia = 100*mean(b_dex_doseHigh < log(arr_4_or_high_dose_arrhythmia)),
+            rrr_arr_6_high_dose_arrhythmia = 100*mean(b_dex_doseHigh < log(arr_6_or_high_dose_arrhythmia)),
+            rrr_arr_8_high_dose_arrhythmia = 100*mean(b_dex_doseHigh < log(arr_8_or_high_dose_arrhythmia)))
 
 # Low dose
 Rc_low_dose_arrhythmia <- median(IVdat_arrhythmia[IVdat_arrhythmia$dex_dose=="Low" &
                                                !is.na(IVdat_arrhythmia$dex_dose),]$control_arrhythmia_rate)
-nnt_50_Rt_low_dose_arrhythmia <- Rc_low_dose_arrhythmia - (100/50)/100
-nnt_50_or_low_dose_arrhythmia <- (nnt_50_Rt_low_dose_arrhythmia*(Rc_low_dose_arrhythmia - 1))/(Rc_low_dose_arrhythmia*(nnt_50_Rt_low_dose_arrhythmia - 1))
+arr_2_Rt_low_dose_arrhythmia <- Rc_low_dose_arrhythmia - 0.02
+arr_2_or_low_dose_arrhythmia <- (arr_2_Rt_low_dose_arrhythmia*(Rc_low_dose_arrhythmia - 1))/(Rc_low_dose_arrhythmia*(arr_2_Rt_low_dose_arrhythmia - 1))
 
-nnt_25_Rt_low_dose_arrhythmia <- Rc_low_dose_arrhythmia - (100/25)/100
-nnt_25_or_low_dose_arrhythmia <- (nnt_25_Rt_low_dose_arrhythmia*(Rc_low_dose_arrhythmia - 1))/(Rc_low_dose_arrhythmia*(nnt_25_Rt_low_dose_arrhythmia - 1))
+arr_4_Rt_low_dose_arrhythmia <- Rc_low_dose_arrhythmia - 0.04
+arr_4_or_low_dose_arrhythmia <- (arr_4_Rt_low_dose_arrhythmia*(Rc_low_dose_arrhythmia - 1))/(Rc_low_dose_arrhythmia*(arr_4_Rt_low_dose_arrhythmia - 1))
 
-nnt_10_Rt_low_dose_arrhythmia <- Rc_low_dose_arrhythmia - (100/10)/100
-nnt_10_or_low_dose_arrhythmia <- (nnt_10_Rt_low_dose_arrhythmia*(Rc_low_dose_arrhythmia - 1))/(Rc_low_dose_arrhythmia*(nnt_10_Rt_low_dose_arrhythmia - 1))
+arr_6_Rt_low_dose_arrhythmia <- Rc_low_dose_arrhythmia - 0.06
+arr_6_or_low_dose_arrhythmia <- (arr_6_Rt_low_dose_arrhythmia*(Rc_low_dose_arrhythmia - 1))/(Rc_low_dose_arrhythmia*(arr_6_Rt_low_dose_arrhythmia - 1))
+
+arr_8_Rt_low_dose_arrhythmia <- Rc_low_dose_arrhythmia - 0.08
+arr_8_or_low_dose_arrhythmia <- (arr_8_Rt_low_dose_arrhythmia*(Rc_low_dose_arrhythmia - 1))/(Rc_low_dose_arrhythmia*(arr_8_Rt_low_dose_arrhythmia - 1))
 
 probs_low_dose_arrhythmia = 
   spread_draws(m.brm_arrhythmia_dose, b_dex_doseLow) |> 
   summarise(any_benefit_low_dose_arrhythmia = 100*mean(b_dex_doseLow < log(1)),
-            rrr_nnt_50_low_dose_arrhythmia = 100*mean(b_dex_doseLow < log(nnt_50_or_low_dose_arrhythmia)),
-            rrr_nnt_25_low_dose_arrhythmia = 100*mean(b_dex_doseLow < log(nnt_25_or_low_dose_arrhythmia)),
-            rrr_nnt_10_low_dose_arrhythmia = 100*mean(b_dex_doseLow < log(nnt_10_or_low_dose_arrhythmia)),
-            )
+            rrr_arr_2_low_dose_arrhythmia = 100*mean(b_dex_doseLow < log(arr_2_or_low_dose_arrhythmia)),
+            rrr_arr_4_low_dose_arrhythmia = 100*mean(b_dex_doseLow < log(arr_4_or_low_dose_arrhythmia)),
+            rrr_arr_6_low_dose_arrhythmia = 100*mean(b_dex_doseLow < log(arr_6_or_low_dose_arrhythmia)),
+            rrr_arr_8_low_dose_arrhythmia = 100*mean(b_dex_doseLow < log(arr_8_or_low_dose_arrhythmia)))
 
 prob_tbl1 <- as.data.frame(rbind("Overall" = c("Overall",  Rc_overall_arrhythmia, probs_overall_arrhythmia),
      "Age below 60" = c("Age below 60",  Rc_age_below_60_arrhythmia, probs_age_below_60_arrhythmia),
      "Age above 60" = c("Age above 60",  Rc_age_above_60_arrhythmia,probs_age_above_60_arrhythmia),
      "High dose" = c("High dose",  Rc_high_dose_arrhythmia, probs_high_dose_arrhythmia),
      "Low dose" = c("Low dose",  Rc_low_dose_arrhythmia, probs_low_dose_arrhythmia))) %>%
-  mutate_at(vars(2:6), as.numeric) %>%
+  mutate_at(vars(2:7), as.numeric) %>%
   rename(`Subgroup` = V1,
           `median_rate` = V2) %>%
   mutate(`median_rate` = `median_rate` * 100) %>%
-  mutate_at(vars(2:6), ~sprintf("%.1f", .))
+  mutate_at(vars(2:7), ~sprintf("%.1f", .))
 
-colnames(prob_tbl1) <- c("Subgroup", "Median control group rate (%)", "Probability of any benefit (%)", "Probability of NNT = 50 (%)",
-                        "Probability of NNT = 25 (%)", "Probability of NNT = 10 (%)")
+colnames(prob_tbl1) <- c("Subgroup", "Median control group rate (%)", "Probability of any benefit (%)", "Probability of ARR = 2 (%)",
+                        "Probability of ARR = 4 (%)", "Probability of ARR = 6 (%)", "Probability of ARR = 8 (%)")
 
 # First - mortality
  # Begin with overall
@@ -4753,101 +5242,119 @@ colnames(prob_tbl1) <- c("Subgroup", "Median control group rate (%)", "Probabili
 Rc_overall_mortality <- median(IVdat_mortality$control_mortality_rate)
 
 
-nnt_50_Rt_overall_mortality <- Rc_overall_mortality - (100/50)/100
-nnt_50_or_overall_mortality <- (nnt_50_Rt_overall_mortality*(Rc_overall_mortality - 1))/(Rc_overall_mortality*(nnt_50_Rt_overall_mortality - 1))
+arr_2_Rt_overall_mortality <- Rc_overall_mortality - 0.02
+arr_2_or_overall_mortality <- (arr_2_Rt_overall_mortality*(Rc_overall_mortality - 1))/(Rc_overall_mortality*(arr_2_Rt_overall_mortality - 1))
 
-nnt_25_Rt_overall_mortality <- Rc_overall_mortality - (100/25)/100
-nnt_25_or_overall_mortality <- (nnt_25_Rt_overall_mortality*(Rc_overall_mortality - 1))/(Rc_overall_mortality*(nnt_25_Rt_overall_mortality - 1))
+arr_4_Rt_overall_mortality <- Rc_overall_mortality - 0.04
+arr_4_or_overall_mortality <- (arr_4_Rt_overall_mortality*(Rc_overall_mortality - 1))/(Rc_overall_mortality*(arr_4_Rt_overall_mortality - 1))
 
-nnt_10_Rt_overall_mortality <- Rc_overall_mortality - (100/10)/100
-nnt_10_or_overall_mortality <- (nnt_10_Rt_overall_mortality*(Rc_overall_mortality - 1))/(Rc_overall_mortality*(nnt_10_Rt_overall_mortality - 1))
+arr_6_Rt_overall_mortality <- Rc_overall_mortality - 0.06
+arr_6_or_overall_mortality <- (arr_6_Rt_overall_mortality*(Rc_overall_mortality - 1))/(Rc_overall_mortality*(arr_6_Rt_overall_mortality - 1))
+
+arr_8_Rt_overall_mortality <- Rc_overall_mortality - 0.08
+arr_8_or_overall_mortality <- (arr_8_Rt_overall_mortality*(Rc_overall_mortality - 1))/(Rc_overall_mortality*(arr_8_Rt_overall_mortality - 1))
 
 probs_overall_mortality = 
   m.brm_mortality |> 
   tidy_draws() |> 
   summarise(any_benefit_overall_mortality = 100*mean(b_Intercept < log(1)),
-            rrr_nnt_50_overall_mortality = 100*mean(b_Intercept < log(nnt_50_or_overall_mortality)),
-            rrr_nnt_25_overall_mortality = 100*mean(b_Intercept < log(nnt_25_or_overall_mortality)),
-            rrr_nnt_10_overall_mortality = 100*mean(b_Intercept < log(nnt_10_or_overall_mortality)))
+            rrr_arr_2_overall_mortality = 100*mean(b_Intercept < log(arr_2_or_overall_mortality)),
+            rrr_arr_4_overall_mortality = 100*mean(b_Intercept < log(arr_4_or_overall_mortality)),
+            rrr_arr_6_overall_mortality = 100*mean(b_Intercept < log(arr_6_or_overall_mortality)),
+            rrr_arr_8_overall_mortality = 100*mean(b_Intercept < log(arr_8_or_overall_mortality)))
 
 # First, age below 60
 Rc_age_below_60_mortality <- median(IVdat_mortality[IVdat_mortality$age_60=="No" &
                                                !is.na(IVdat_mortality$age_60),]$control_mortality_rate)
-nnt_50_Rt_age_below_60_mortality <- Rc_age_below_60_mortality - (100/50)/100
-nnt_50_or_age_below_60_mortality <- (nnt_50_Rt_age_below_60_mortality*(Rc_age_below_60_mortality - 1))/(Rc_age_below_60_mortality*(nnt_50_Rt_age_below_60_mortality - 1))
+arr_2_Rt_age_below_60_mortality <- Rc_age_below_60_mortality - 0.02
+arr_2_or_age_below_60_mortality <- (arr_2_Rt_age_below_60_mortality*(Rc_age_below_60_mortality - 1))/(Rc_age_below_60_mortality*(arr_2_Rt_age_below_60_mortality - 1))
 
-nnt_25_Rt_age_below_60_mortality <- Rc_age_below_60_mortality - (100/25)/100
-nnt_25_or_age_below_60_mortality <- (nnt_25_Rt_age_below_60_mortality*(Rc_age_below_60_mortality - 1))/(Rc_age_below_60_mortality*(nnt_25_Rt_age_below_60_mortality - 1))
+arr_4_Rt_age_below_60_mortality <- Rc_age_below_60_mortality - 0.04
+arr_4_or_age_below_60_mortality <- (arr_4_Rt_age_below_60_mortality*(Rc_age_below_60_mortality - 1))/(Rc_age_below_60_mortality*(arr_4_Rt_age_below_60_mortality - 1))
 
-nnt_10_Rt_age_below_60_mortality <- Rc_age_below_60_mortality - (100/10)/100
-nnt_10_or_age_below_60_mortality <- (nnt_10_Rt_age_below_60_mortality*(Rc_age_below_60_mortality - 1))/(Rc_age_below_60_mortality*(nnt_10_Rt_age_below_60_mortality - 1))
+arr_6_Rt_age_below_60_mortality <- Rc_age_below_60_mortality - 0.06
+arr_6_or_age_below_60_mortality <- (arr_6_Rt_age_below_60_mortality*(Rc_age_below_60_mortality - 1))/(Rc_age_below_60_mortality*(arr_6_Rt_age_below_60_mortality - 1))
+
+arr_8_Rt_age_below_60_mortality <- Rc_age_below_60_mortality - 0.08
+arr_8_or_age_below_60_mortality <- (arr_8_Rt_age_below_60_mortality*(Rc_age_below_60_mortality - 1))/(Rc_age_below_60_mortality*(arr_8_Rt_age_below_60_mortality - 1))
 
 probs_age_below_60_mortality = 
   spread_draws(m.brm_mortality_age, b_age_60No) |> 
   summarise(any_benefit_age_below_60_mortality = 100*mean(b_age_60No < log(1)),
-            rrr_nnt_50_age_below_60_mortality = 100*mean(b_age_60No < log(nnt_50_or_age_below_60_mortality)),
-            rrr_nnt_25_age_below_60_mortality = 100*mean(b_age_60No < log(nnt_25_or_age_below_60_mortality)),
-            rrr_nnt_10_age_below_60_mortality = 100*mean(b_age_60No < log(nnt_10_or_age_below_60_mortality)))
+            rrr_arr_2_age_below_60_mortality = 100*mean(b_age_60No < log(arr_2_or_age_below_60_mortality)),
+            rrr_arr_4_age_below_60_mortality = 100*mean(b_age_60No < log(arr_4_or_age_below_60_mortality)),
+            rrr_arr_6_age_below_60_mortality = 100*mean(b_age_60No < log(arr_6_or_age_below_60_mortality)),
+            rrr_arr_8_age_below_60_mortality = 100*mean(b_age_60No < log(arr_8_or_age_below_60_mortality)))
 
 # Then age above 60
 Rc_age_above_60_mortality <- median(IVdat_mortality[IVdat_mortality$age_60=="Yes" &
                                                !is.na(IVdat_mortality$age_60),]$control_mortality_rate)
-nnt_50_Rt_age_above_60_mortality <- Rc_age_above_60_mortality - (100/50)/100
-nnt_50_or_age_above_60_mortality <- (nnt_50_Rt_age_above_60_mortality*(Rc_age_above_60_mortality - 1))/(Rc_age_above_60_mortality*(nnt_50_Rt_age_above_60_mortality - 1))
+arr_2_Rt_age_above_60_mortality <- Rc_age_above_60_mortality - 0.02
+arr_2_or_age_above_60_mortality <- (arr_2_Rt_age_above_60_mortality*(Rc_age_above_60_mortality - 1))/(Rc_age_above_60_mortality*(arr_2_Rt_age_above_60_mortality - 1))
 
-nnt_25_Rt_age_above_60_mortality <- Rc_age_above_60_mortality - (100/25)/100
-nnt_25_or_age_above_60_mortality <- (nnt_25_Rt_age_above_60_mortality*(Rc_age_above_60_mortality - 1))/(Rc_age_above_60_mortality*(nnt_25_Rt_age_above_60_mortality - 1))
+arr_4_Rt_age_above_60_mortality <- Rc_age_above_60_mortality - 0.04
+arr_4_or_age_above_60_mortality <- (arr_4_Rt_age_above_60_mortality*(Rc_age_above_60_mortality - 1))/(Rc_age_above_60_mortality*(arr_4_Rt_age_above_60_mortality - 1))
 
-nnt_10_Rt_age_above_60_mortality <- Rc_age_above_60_mortality - (100/10)/100
-nnt_10_or_age_above_60_mortality <- (nnt_10_Rt_age_above_60_mortality*(Rc_age_above_60_mortality - 1))/(Rc_age_above_60_mortality*(nnt_10_Rt_age_above_60_mortality - 1))
+arr_6_Rt_age_above_60_mortality <- Rc_age_above_60_mortality - 0.06
+arr_6_or_age_above_60_mortality <- (arr_6_Rt_age_above_60_mortality*(Rc_age_above_60_mortality - 1))/(Rc_age_above_60_mortality*(arr_6_Rt_age_above_60_mortality - 1))
+
+arr_8_Rt_age_above_60_mortality <- Rc_age_above_60_mortality - 0.08
+arr_8_or_age_above_60_mortality <- (arr_8_Rt_age_above_60_mortality*(Rc_age_above_60_mortality - 1))/(Rc_age_above_60_mortality*(arr_8_Rt_age_above_60_mortality - 1))
 
 probs_age_above_60_mortality = 
   spread_draws(m.brm_mortality_age, b_age_60Yes) |> 
   summarise(any_benefit_age_above_60_mortality = 100*mean(b_age_60Yes < log(1)),
-            rrr_nnt_50_age_above_60_mortality = 100*mean(b_age_60Yes < log(nnt_50_or_age_above_60_mortality)),
-            rrr_nnt_25_age_above_60_mortality = 100*mean(b_age_60Yes < log(nnt_25_or_age_above_60_mortality)),
-            rrr_nnt_10_age_above_60_mortality = 100*mean(b_age_60Yes < log(nnt_10_or_age_above_60_mortality)))
+            rrr_arr_2_age_above_60_mortality = 100*mean(b_age_60Yes < log(arr_2_or_age_above_60_mortality)),
+            rrr_arr_4_age_above_60_mortality = 100*mean(b_age_60Yes < log(arr_4_or_age_above_60_mortality)),
+            rrr_arr_6_age_above_60_mortality = 100*mean(b_age_60Yes < log(arr_6_or_age_above_60_mortality)),
+            rrr_arr_8_age_above_60_mortality = 100*mean(b_age_60Yes < log(arr_8_or_age_above_60_mortality)))
 
 # High dose
 Rc_high_dose_mortality <- median(IVdat_mortality[IVdat_mortality$dex_dose=="High" &
                                                !is.na(IVdat_mortality$dex_dose),]$control_mortality_rate)
 
-nnt_50_Rt_high_dose_mortality <- Rc_high_dose_mortality - (100/50)/100
-nnt_50_or_high_dose_mortality <- (nnt_50_Rt_high_dose_mortality*(Rc_high_dose_mortality - 1))/(Rc_high_dose_mortality*(nnt_50_Rt_high_dose_mortality - 1))
+arr_2_Rt_high_dose_mortality <- Rc_high_dose_mortality - 0.02
+arr_2_or_high_dose_mortality <- (arr_2_Rt_high_dose_mortality*(Rc_high_dose_mortality - 1))/(Rc_high_dose_mortality*(arr_2_Rt_high_dose_mortality - 1))
 
-nnt_25_Rt_high_dose_mortality <- Rc_high_dose_mortality - (100/25)/100
-nnt_25_or_high_dose_mortality <- (nnt_25_Rt_high_dose_mortality*(Rc_high_dose_mortality - 1))/(Rc_high_dose_mortality*(nnt_25_Rt_high_dose_mortality - 1))
+arr_4_Rt_high_dose_mortality <- Rc_high_dose_mortality - 0.04
+arr_4_or_high_dose_mortality <- (arr_4_Rt_high_dose_mortality*(Rc_high_dose_mortality - 1))/(Rc_high_dose_mortality*(arr_4_Rt_high_dose_mortality - 1))
 
-nnt_10_Rt_high_dose_mortality <- Rc_high_dose_mortality - (100/10)/100
-nnt_10_or_high_dose_mortality <- (nnt_10_Rt_high_dose_mortality*(Rc_high_dose_mortality - 1))/(Rc_high_dose_mortality*(nnt_10_Rt_high_dose_mortality - 1))
+arr_6_Rt_high_dose_mortality <- Rc_high_dose_mortality - 0.06
+arr_6_or_high_dose_mortality <- (arr_6_Rt_high_dose_mortality*(Rc_high_dose_mortality - 1))/(Rc_high_dose_mortality*(arr_6_Rt_high_dose_mortality - 1))
+
+arr_8_Rt_high_dose_mortality <- Rc_high_dose_mortality - 0.08
+arr_8_or_high_dose_mortality <- (arr_8_Rt_high_dose_mortality*(Rc_high_dose_mortality - 1))/(Rc_high_dose_mortality*(arr_8_Rt_high_dose_mortality - 1))
 
 probs_high_dose_mortality = 
   spread_draws(m.brm_mortality_dose, b_dex_doseHigh) |> 
   summarise(any_benefit_high_dose_mortality = 100*mean(b_dex_doseHigh < log(1)),
-            rrr_nnt_50_high_dose_mortality = 100*mean(b_dex_doseHigh < log(nnt_50_or_high_dose_mortality)),
-            rrr_nnt_25_high_dose_mortality = 100*mean(b_dex_doseHigh < log(nnt_25_or_high_dose_mortality)),
-            rrr_nnt_10_high_dose_mortality = 100*mean(b_dex_doseHigh < log(nnt_10_or_high_dose_mortality)),
-            )
+            rrr_arr_2_high_dose_mortality = 100*mean(b_dex_doseHigh < log(arr_2_or_high_dose_mortality)),
+            rrr_arr_4_high_dose_mortality = 100*mean(b_dex_doseHigh < log(arr_4_or_high_dose_mortality)),
+            rrr_arr_6_high_dose_mortality = 100*mean(b_dex_doseHigh < log(arr_6_or_high_dose_mortality)),
+            rrr_arr_8_high_dose_mortality = 100*mean(b_dex_doseHigh < log(arr_8_or_high_dose_mortality)))
 
 # Low dose
 Rc_low_dose_mortality <- median(IVdat_mortality[IVdat_mortality$dex_dose=="Low" &
                                                !is.na(IVdat_mortality$dex_dose),]$control_mortality_rate)
-nnt_50_Rt_low_dose_mortality <- Rc_low_dose_mortality - (100/50)/100
-nnt_50_or_low_dose_mortality <- (nnt_50_Rt_low_dose_mortality*(Rc_low_dose_mortality - 1))/(Rc_low_dose_mortality*(nnt_50_Rt_low_dose_mortality - 1))
+arr_2_Rt_low_dose_mortality <- Rc_low_dose_mortality - 0.02
+arr_2_or_low_dose_mortality <- (arr_2_Rt_low_dose_mortality*(Rc_low_dose_mortality - 1))/(Rc_low_dose_mortality*(arr_2_Rt_low_dose_mortality - 1))
 
-nnt_25_Rt_low_dose_mortality <- Rc_low_dose_mortality - (100/25)/100
-nnt_25_or_low_dose_mortality <- (nnt_25_Rt_low_dose_mortality*(Rc_low_dose_mortality - 1))/(Rc_low_dose_mortality*(nnt_25_Rt_low_dose_mortality - 1))
+arr_4_Rt_low_dose_mortality <- Rc_low_dose_mortality - 0.04
+arr_4_or_low_dose_mortality <- (arr_4_Rt_low_dose_mortality*(Rc_low_dose_mortality - 1))/(Rc_low_dose_mortality*(arr_4_Rt_low_dose_mortality - 1))
 
-nnt_10_Rt_low_dose_mortality <- Rc_low_dose_mortality - (100/10)/100
-nnt_10_or_low_dose_mortality <- (nnt_10_Rt_low_dose_mortality*(Rc_low_dose_mortality - 1))/(Rc_low_dose_mortality*(nnt_10_Rt_low_dose_mortality - 1))
+arr_6_Rt_low_dose_mortality <- Rc_low_dose_mortality - 0.06
+arr_6_or_low_dose_mortality <- (arr_6_Rt_low_dose_mortality*(Rc_low_dose_mortality - 1))/(Rc_low_dose_mortality*(arr_6_Rt_low_dose_mortality - 1))
+
+arr_8_Rt_low_dose_mortality <- Rc_low_dose_mortality - 0.08
+arr_8_or_low_dose_mortality <- (arr_8_Rt_low_dose_mortality*(Rc_low_dose_mortality - 1))/(Rc_low_dose_mortality*(arr_8_Rt_low_dose_mortality - 1))
 
 probs_low_dose_mortality = 
   spread_draws(m.brm_mortality_dose, b_dex_doseLow) |> 
   summarise(any_benefit_low_dose_mortality = 100*mean(b_dex_doseLow < log(1)),
-            rrr_nnt_50_low_dose_mortality = 100*mean(b_dex_doseLow < log(nnt_50_or_low_dose_mortality)),
-            rrr_nnt_25_low_dose_mortality = 100*mean(b_dex_doseLow < log(nnt_25_or_low_dose_mortality)),
-            rrr_nnt_10_low_dose_mortality = 100*mean(b_dex_doseLow < log(nnt_10_or_low_dose_mortality)),
-            )
+            rrr_arr_2_low_dose_mortality = 100*mean(b_dex_doseLow < log(arr_2_or_low_dose_mortality)),
+            rrr_arr_4_low_dose_mortality = 100*mean(b_dex_doseLow < log(arr_4_or_low_dose_mortality)),
+            rrr_arr_6_low_dose_mortality = 100*mean(b_dex_doseLow < log(arr_6_or_low_dose_mortality)),
+            rrr_arr_8_low_dose_mortality = 100*mean(b_dex_doseLow < log(arr_8_or_low_dose_mortality)))
 
 prob_tbl2 <- as.data.frame(rbind("Overall" = c("Overall",  Rc_overall_mortality, probs_overall_mortality),
      "Age below 60" = c("Age below 60",  Rc_age_below_60_mortality, probs_age_below_60_mortality),
@@ -4855,14 +5362,14 @@ prob_tbl2 <- as.data.frame(rbind("Overall" = c("Overall",  Rc_overall_mortality,
      "High dose" = c("High dose",  Rc_high_dose_mortality, probs_high_dose_mortality),
      "Low dose" = c("Low dose", Rc_low_dose_mortality, probs_low_dose_mortality)
      )) %>%
-  mutate_at(vars(2:6), as.numeric) %>%
+  mutate_at(vars(2:7), as.numeric) %>%
   rename(`Subgroup` = V1,
          `median_rate` = V2) %>%
   mutate(`median_rate` = `median_rate` * 100) %>%
-  mutate_at(vars(2:6), ~sprintf("%.1f", .))
+  mutate_at(vars(2:7), ~sprintf("%.1f", .))
 
-colnames(prob_tbl2) <- c("Subgroup", "Median control group rate (%)", "Probability of any benefit (%)", "Probability of NNT = 50 (%)",
-                        "Probability of NNT = 25 (%)", "Probability of NNT = 10 (%)")
+colnames(prob_tbl2) <- c("Subgroup", "Median control group rate (%)", "Probability of any benefit (%)", "Probability of ARR = 2 (%)",
+                        "Probability of ARR = 4 (%)", "Probability of ARR = 6 (%)", "Probability of ARR = 8 (%)")
 
 # combine the two data frames using rbind()
 prob_tbl <- rbind(prob_tbl1, prob_tbl2)
@@ -5138,21 +5645,31 @@ prob_tbl %>%
 
 ```
 
-# Publication bias
+# Small study effects
 
-We will use two Bayesian methods of publication bias assessment: Bayesian regression testing and Bayesian model averaging. Both of these techniques were only described in the last few years, so we will also use some more well-established frequentist methods further down below.
+We will use two Bayesian methods of sample study effects assessment: Bayesian regression testing and Bayesian model averaging. Both of these techniques were only described in the last few years, so we will also use some more well-established frequentist methods further down below.
 
 ## Bayesian regression test
 
-Arguably the most popular method of publication bias assessment is through analysis of funnel plot asymmetry, in the form of Egger's regression test (and variants therein). This test involves regressing the effect sizes of studies according to their precision; slopes that are significantly different from 0 suggest publication bias. This can also be applied in a Bayesian framework, and was described recently by [Shi et al.](https://pubmed.ncbi.nlm.nih.gov/32424987/) The interpretation regarding the slope is similar to the frequentist Egger's test. Shi et al. use the latent "true" SEs in the Egger-type regression under the Bayesian framework.
+Arguably the most popular method of sample study effect assessment is through analysis of funnel plot asymmetry, in the form of Egger's regression test (and variants therein). This test involves regressing the effect sizes of studies according to their precision; slopes that are significantly different from 0 suggest sample sample bias. This can also be applied in a Bayesian framework, and was described recently by [Shi et al.](https://pubmed.ncbi.nlm.nih.gov/32424987/) The interpretation regarding the slope is similar to the frequentist Egger's test. Shi et al. use the latent "true" SEs in the Egger-type regression under the Bayesian framework.
 
-Like many publication bias tests, **this actually assesses funnel plot asymmetry (of which publication bias is only 1 cause).**
+Like many sample bias tests, **this actually assesses funnel plot asymmetry (of which publication bias is only 1 cause).**
 
-There are various options for inputs. We will use multiplicative heterogeneity rather than additive heterogeneity. We will use a half-normal prior with 0.5 scale parameter (Cauchy distributions are not available but the difference is likely trivial). The default priors for the regression intercept and slope are used: $N(0, 10^2)$.
+For a list of alternative causes of funnel plot asymmetry, see [Harrer et al.](https://bookdown.org/MathiasHarrer/Doing_Meta_Analysis_in_R/pub-bias.html)
+
+Briefly, they are:
+
+- Between-study effect heterogeneity
+- Heterogeneity in types of feasible methods of small vs. large studies
+- Small studies being more poorly run than large studies
+- Random change
+
+There are various options for inputs. We will use multiplicative heterogeneity rather than additive heterogeneity. We will use a half-normal prior with 0.5 scale parameter (Cauchy distributions are not available but the difference is likely trivial). The default vague priors for the regression intercept and slope are used: $N(0, 10^4)$, as this is the approach use for the model's validation in [Shi et al.](https://pubmed.ncbi.nlm.nih.gov/32424987/)
 
 As you can see in @tbl-bayesian-regression, the 95%CrI for the slope excludes 0, whether looking at all studies or excluding studies at high risk of bias. This suggests the presence of publication bias.
 
 ## All studies
+
 ```{r}
 #| label: tbl-bayesian-regression
 #| tbl-cap: Bayesian regression testing to assess for small study effects.
@@ -5184,11 +5701,11 @@ dat1 <- data.frame(estimate = sprintf('%.2f', df_all[[1]]),
 dat2 <- data.frame(estimate = sprintf('%.2f', df_low_rob[[1]]),
                   confint = paste0(sprintf('%.2f', df_low_rob$ci.bay[[1]]), ", ", sprintf('%.2f', df_low_rob$ci.bay[[2]])),
                   Group = "Excluding studies at high risk of bias")
-dat <- rbind(dat1, dat2)
+dat_pub <- rbind(dat1, dat2)
 
-colnames(dat) <- c("Estimate", "95% credible interval", "Group")
+colnames(dat_pub) <- c("Estimate", "95% credible interval", "Group")
 
-dat %>%
+dat_pub %>%
   gt(groupname_col = "Group") %>%
     tab_style(
     style = list(
@@ -5209,20 +5726,19 @@ dat %>%
 
 Bayesian model averaging is based on one central premise: a myriad of arguments can be made for or against using a myriad of possible Bayesian models; rather than choosing one, why not average them all?
 
-As [Bartos et al.](https://onlinelibrary.wiley.com/doi/full/10.1002/jrsm.1594) put it: 
+As [Bartos et al.](https://onlinelibrary.wiley.com/doi/full/10.1002/jrsm.1594) put it:
 
-> "In practice, researchers seldom have knowledge about the data-generating process nor do they have sufficient information to choose with confidence among the wide variety of proposed methods that aim to adjust for publication bias. Furthermore, this wide range of proposed methods often leads to contradictory conclusions. The combination of uncertainty about the data-generating process and the presence of conflicting conclusions can create a “breeding ground” for confirmation bias31: researchers may unintentionally select those methods that support the desired outcome. This freedom to choose can greatly inflate the rate of false positives, which can be a serious problem for conventional meta-analysis methods."
+> "In practice, researchers seldom have knowledge about the data-generating process nor do they have sufficient information to choose with confidence among the wide variety of proposed methods that aim to adjust for publication bias. Furthermore, this wide range of proposed methods often leads to contradictory conclusions. The combination of uncertainty about the data-generating process and the presence of conflicting conclusions can create a "breeding ground" for confirmation bias: researchers may unintentionally select those methods that support the desired outcome. This freedom to choose can greatly inflate the rate of false positives, which can be a serious problem for conventional meta-analysis methods."
 
-The RoBMA packages generates three families of models across 12 models (interfacing with `JAGS` through `rjags`), and averages their performance. A total of 32 of these models include publication bias and 4 do not. For a description see [this link](https://psyarxiv.com/u4cns?ref=hormones-brain-and-behavior). The output includes an **inclusion Bayes factor**. The Bayes factor is the ratio of two marginal likelihoods (i.e., two probabilities of data given certain models). We will produce Bayes factors for the mean effect, heterogeneity, and publication bias. 
+The RoBMA packages generates three families of models across 12 models (interfacing with `JAGS` through `rjags`), and averages their performance. A total of 32 of these models include publication bias and 4 do not. For a description see [this link](https://psyarxiv.com/u4cns?ref=hormones-brain-and-behavior). The output includes an **inclusion Bayes factor**. The Bayes factor is the ratio of two marginal likelihoods (i.e., two probabilities of data given certain models). We will produce Bayes factors for the mean effect, heterogeneity, and publication bias.
 
 The "inclusion" part of "inclusion Bayes factor" refers to the fact we are comparing the alternative hypothesis *relative* to the null hypothesis. Hence our notation for the bayes factor is $BF_{10}$ rather than $BF_{01}$, which is another kind of Bayes factor that compares the null hypothesis *relative* to the alternative hypothesis. So, for the mean effect, our null model is $H_0: {\mu} = 0$ and alterative model is $H_1: {\mu} ≠ 0$. Then, the inclusion Bayes factor is:
 
 $$
 BF_{10} = \frac{p(data | H_1)}{p(data | H_0)}
-$$
-Bayes factors answers the question: Are the observed data more probable under models with a particular effect, than they are under models without that particular effect? Inclusion Bayes factors \>3 indicate 'substantial' evidence against the null, while inclusion Bayes factors \<1/3 indicate 'substantial' evidence for the null.
+$$ Bayes factors answers the question: Are the observed data more probable under models with a particular effect, than they are under models without that particular effect? Inclusion Bayes factors \>3 indicate 'substantial' evidence against the null, while inclusion Bayes factors \<1/3 indicate 'substantial' evidence for the null.
 
-We can use Bayesian model averaging for the whole meta-analysis, if we wanted to. But here we're specifically interested in publication bias. The benefit provided by the model averaging approach is that we are provided with an inclusion Bayes factor for publication bias. A high inclusion BF for publication bias would suggest that models accounting for publication bias are more consistent with the observed data. We are also provided with an estimate that accounts for publication bias. 
+We can use Bayesian model averaging for the whole meta-analysis, if we wanted to. But here we're specifically interested in publication bias. The benefit provided by the model averaging approach is that we are provided with an inclusion Bayes factor for publication bias. A high inclusion BF for publication bias would suggest that models accounting for publication bias are more consistent with the observed data. We are also provided with an estimate that accounts for publication bias.
 
 Publication bias models include selection models and PET-PEESE models as methods of publication bias assessment. The publication bias adjusment prior is described in [Bartoš (2021).](https://onlinelibrary.wiley.com/doi/full/10.1002/jrsm.1594)
 
@@ -5289,16 +5805,18 @@ rbind(df_all, df_low_rob) %>%
 
 ### Plots
 
-Now let's plot the posterior distributions for the mean effect to visualise the effect of publication bias. In @fig-robma-plots below, (A) shows the distribution of the model-averaged estimate with models including publication bias, and (B) is the average distribution of models that do not include publication bias. 
+Now let's plot the posterior distributions for the mean effect to visualise the effect of publication bias. In @fig-robma-plots below, (A) shows the distribution of the model-averaged estimate with models including publication bias, and (B) is the average distribution of models that do not include publication bias.
 
 Our model-averaged estimates in these plots use models that assume the absence of an effect (other options includes models that assume the presence of an effect).
 
 The arrows demonstrate the probability of a spike at $log(OR) = 0$ (no effect).
 
-Evidently, including publication bias models significantly changes the results. 
+Evidently, including publication bias models significantly changes the results.
 
 ```{r}
 #| label: fig-robma-plots
+#| fig-cap: |
+#|    Plots of the model-averaged mean effect when considering (A) all models including those accounting for publication bias, and (B) models excluding those accounting for publication bias.
 #| fig.height: 4
 #| fig.width: 10
 
@@ -5336,22 +5854,43 @@ grid.arrange(plot1, plot2, ncol = 2)
 
 ```
 
-## Frequentist methods for publication bias
+## Frequentist methods for small study effects
 
-### Funnel plot
+### Contour-enhanced funnel plot
 
-Below is the funnel plot. As you can see, there is clear asymmetry to the plot, with studies missing from the right hand side (area of no effect or harm).
+Below in @fig-freq-funnel is the contour-enhanced funnel plot. As you can see, there is clear asymmetry to the plot, with small studies missing from the right hand side (area of no effect or harm). 
 
-```{r freq_funnel, fig.height=5, fig.width=5}
-res_REML <- rma(yi, vi, data=IVdat_del_bayesmeta, 
-                        test="knha", method = "REML")
-funnel(res_REML, yaxis="sei",
-       xlab = "Odds ratio (log scale)", ylab = "Standard error",
-       steps=5, level=res_REML$level,
-       addtau2=FALSE, type="rstandard",
-       back="lightgray", shade="white", hlines="white",
-       lty=3,
-       label=FALSE, offset=0.4)
+We are actually using the `meta` package for frequentist analysis here (this is the most aesthetically pleasing option for contour-enhanced funnel plots in my opinion), rather than `metafor`. However the results are the same as the methods I've used are identical in both packages.
+
+```{r}
+#| label: fig-freq-funnel
+#| fig-cap: |
+#|    Contour-enhaced funnel plot for the outcome of postoperative delirium.
+#| fig.height: 5
+#| fig.width: 5
+library(meta)
+
+m.gen <- metagen(TE = yi,
+                 seTE = sqrt(vi),
+                 studlab = author,
+                 data = IVdat_del_bayesmeta,
+                 sm = "OR",
+                 fixed = FALSE,
+                 random = TRUE,
+                 method.tau = "REML",
+                 hakn = TRUE)
+
+col.contour = c("gray75", "gray85", "gray95")
+
+# Generate funnel plot (we do not include study labels here)
+funnel.meta(m.gen, 
+            contour = c(0.9, 0.95, 0.99),
+            col.contour = col.contour)
+
+# Add a legend
+legend(x = 1.6, y = 0.01, 
+       legend = c("p < 0.1", "p < 0.05", "p < 0.01"),
+       fill = col.contour)
 ```
 
 ### Henmi & Copas method
@@ -5367,14 +5906,14 @@ $$ {#eq-weights-re}
 For a fixed effect analysis, $\tau$ is not estimated, and the weight of studies is given by:
 
 $$
-w_i = 1/v_i
+w_i = \frac{1}{v_i}
 $$ {#eq-weights-fe}
 
 Indeed, this is partly why the random effects inverse variance meta-analysis converges to a fixed effect analysis when $\tau$ is estimated to be 0.
 
 However, in the presence of significant heterogeneity in random effects meta-analysis, @eq-weights-re results in the relative downweighting of larger studies and upweighting of smaller studies. This means smaller studies have a greater influence on the pooled outcome, which exacerbates any impact of publication bias.
 
-Henmi and Copas proposed that studies in a random effects meta-analysis be weighted according to fixed effect @eq-weights-fe. This means that $\tau$ is calculated and incorporated into the results but is not used to weight the studies. This approach was later popularised by Doi et al. as the 'Inverse Variance Heterogeneity Model'. 
+Henmi and Copas proposed that studies in a random effects meta-analysis be weighted according to fixed effect @eq-weights-fe. This means that $\tau$ is calculated and incorporated into the results but is not used to weight the studies. This approach was later popularised by Doi et al. as the 'Inverse Variance Heterogeneity Model'.
 
 @tbl-henmi-copas shows the results.
 
@@ -5407,7 +5946,7 @@ df %>%
 
 ### Selection models
 
-Selection models are another form of publication bias assessment. These revolve around testing the hypothesis that there is a systematic 'selection' of low p-values relative to higher p-values. They also provide revised effect sizes that take into account the hypothesized selection model.  
+Selection models are another form of publication bias assessment. These revolve around testing the hypothesis that there is a systematic 'selection' of low p-values relative to higher p-values. They also provide revised effect sizes that take into account the hypothesized selection model.
 
 We have used the step function to create the so-called "three-parameter selection model". The parameters are $\mu$ (mean effect size), ${\tau}^2$ (heterogeneity variance), and $d^2$ (likelihood of selection of p-values). We can't really do any more complex models because we only have 16 studies.
 
@@ -5442,7 +5981,7 @@ funnel(taf, legend=TRUE)
 
 #### Revised effect size
 
-Now let's print the revised effect size from the trim and fill analysis. 
+Now let's print the revised effect size from the trim and fill analysis.
 
 ```{r trim_and_fill_effect}
 df <- data.frame(predict(taf, transf=exp))
@@ -5464,5 +6003,3 @@ df %>%
       ),
     locations = cells_column_labels())
 ```
-
-
